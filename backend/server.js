@@ -2,23 +2,15 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
-const connectDB = require('./config/db');
-const socketSetup = require('./utils/socket');
 const path = require('path');
-
-// Rutas
-const authRoutes = require('./routes/auth');
-const playerRoutes = require('./routes/players');
-const deviceRoutes = require('./routes/devices');
-const screenshotRoutes = require('./routes/screenshots');
-const monitorRoutes = require('./routes/monitor');
-const tournamentRoutes = require('./routes/tournaments');
-
-// Inicializar app
-const app = express();
+const { connectDB } = require('./config/db');
+const socketSetup = require('./utils/socket');
 
 // Conectar a la base de datos
 connectDB();
+
+// Inicializar app
+const app = express();
 
 // Middleware
 app.use(cors());
@@ -26,13 +18,13 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('dev'));
 
-// Definir rutas
-app.use('/api/auth', authRoutes);
-app.use('/api/players', playerRoutes);
-app.use('/api/devices', deviceRoutes);
-app.use('/api/screenshots', screenshotRoutes);
-app.use('/api/monitor', monitorRoutes);
-app.use('/api/tournaments', tournamentRoutes);
+// Rutas de la API
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/players', require('./routes/players'));
+app.use('/api/devices', require('./routes/devices'));
+app.use('/api/screenshots', require('./routes/screenshots'));
+app.use('/api/monitor', require('./routes/monitor'));
+app.use('/api/tournaments', require('./routes/tournaments'));
 
 // Ruta de estado para Render
 app.get('/health', (req, res) => {
@@ -41,10 +33,7 @@ app.get('/health', (req, res) => {
 
 // Servir archivos estáticos en producción
 if (process.env.NODE_ENV === 'production') {
-  // Establecer la ruta correcta para los archivos estáticos
   const staticPath = path.join(__dirname, '../frontend/dist');
-  console.log('Serving static files from:', staticPath);
-  
   app.use(express.static(staticPath));
   
   // Cualquier ruta que no sea /api redirige al index.html
