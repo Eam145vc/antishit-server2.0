@@ -25,7 +25,7 @@ export const SocketProvider = ({ children }) => {
     
     if (!token) return;
     
-    const socketIo = io('/', {
+    const socketIo = io('https://anti5-0.onrender.com', {
       path: '/socket.io',
       auth: {
         token
