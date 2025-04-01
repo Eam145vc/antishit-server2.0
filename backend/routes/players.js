@@ -1,66 +1,26 @@
-// models/Player.js - Modelo para Jugadores
-const mongoose = require('mongoose');
+const express = require('express');
+const router = express.Router();
+const { 
+  getPlayers, 
+  getPlayerById, 
+  getPlayerByActivisionId,
+  getPlayersByChannel,
+  updatePlayerChannel,
+  getPlayerHistory,
+  getPlayerDevices,
+  markPlayerAsSuspicious,
+  detectDuplicateHWIDs
+} = require('../controllers/playerController');
+const { protect } = require('../middleware/auth');
 
-const playerSchema = mongoose.Schema({
-  activisionId: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  nickname: String,
-  email: String,
-  currentChannelId: {
-    type: Number,
-    default: 0
-  },
-  isOnline: {
-    type: Boolean,
-    default: false
-  },
-  isGameRunning: {
-    type: Boolean,
-    default: false
-  },
-  lastSeen: {
-    type: Date,
-    default: Date.now
-  },
-  clientStartTime: Date,
-  pcStartTime: String,
-  hardwareIds: [String],
-  systemInfo: {
-    windowsVersion: String,
-    directXVersion: String,
-    gpuDriverVersion: String,
-    screenResolution: String,
-    windowsUsername: String,
-    computerName: String,
-    firmwareType: String,
-    timeZone: String
-  },
-  hardwareInfo: {
-    cpu: String,
-    gpu: String,
-    ram: String,
-    motherboard: String,
-    storage: String,
-    networkAdapters: String,
-    audioDevices: String,
-    biosVersion: String,
-    hardwareId: String
-  },
-  tournaments: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Tournament'
-  }],
-  suspiciousActivity: {
-    type: Boolean,
-    default: false
-  },
-  notes: String
-}, {
-  timestamps: true
-});
+router.get('/', protect, getPlayers);
+router.get('/channel/:channelId', protect, getPlayersByChannel);
+router.get('/activision/:activisionId', protect, getPlayerByActivisionId);
+router.get('/detect-duplicates', protect, detectDuplicateHWIDs);
+router.get('/:id', protect, getPlayerById);
+router.get('/:id/history', protect, getPlayerHistory);
+router.get('/:id/devices', protect, getPlayerDevices);
+router.put('/:id/channel', protect, updatePlayerChannel);
+router.put('/:id/suspect', protect, markPlayerAsSuspicious);
 
-const Player = mongoose.model('Player', playerSchema);
-module.exports = Player;
+module.exports = router;
