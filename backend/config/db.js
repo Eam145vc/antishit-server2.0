@@ -1,4 +1,3 @@
-// config/db.js
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
@@ -8,10 +7,11 @@ const connectDB = async () => {
       useUnifiedTopology: true,
     });
     console.log(`MongoDB conectado: ${conn.connection.host}`);
+    return conn;
   } catch (error) {
     console.error(`Error: ${error.message}`);
     process.exit(1);
   }
 };
 
-module.exports = connectDB;
+module.exports = { connectDB };
