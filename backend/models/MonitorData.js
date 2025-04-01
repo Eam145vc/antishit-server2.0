@@ -1,4 +1,5 @@
-// models/MonitorData.js - Modelo para datos de monitoreo
+const mongoose = require('mongoose');
+
 const monitorDataSchema = mongoose.Schema({
     player: {
       type: mongoose.Schema.Types.ObjectId,
