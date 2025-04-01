@@ -2,6 +2,7 @@
 const MonitorData = require('../models/MonitorData');
 const Player = require('../models/Player');
 const Device = require('../models/Device');
+const Screenshot = require('../models/Screenshot'); // Añadido
 const { emitMonitorData, emitAlert } = require('../utils/socket');
 const { trackHWID } = require('../utils/hwid');
 
