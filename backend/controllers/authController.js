@@ -1,4 +1,3 @@
-// Complete implementation for authController.js
 const User = require('../models/User');
 const { generateToken } = require('../config/auth');
 
@@ -79,6 +78,7 @@ const registerUser = async (req, res) => {
   }
 };
 
+// Resto de los controladores permanecen igual
 const getUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
