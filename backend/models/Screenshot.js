@@ -1,4 +1,6 @@
 // models/Screenshot.js - Modelo para Capturas de Pantalla
+const mongoose = require('mongoose');
+
 const screenshotSchema = mongoose.Schema({
   player: {
     type: mongoose.Schema.Types.ObjectId,
