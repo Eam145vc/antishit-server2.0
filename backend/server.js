@@ -48,12 +48,13 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Manejo de errores
+// Manejo de errores mejorado
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Error global:', err.stack);
   res.status(500).json({ 
     error: true, 
-    message: err.message || 'Error interno del servidor' 
+    message: err.message || 'Error interno del servidor',
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
 
