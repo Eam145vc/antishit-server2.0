@@ -3,11 +3,15 @@
   "version": "1.0.0",
   "description": "Anti-Cheat Monitoring System",
   "scripts": {
-    "install": "cd frontend && npm ci && cd ../backend && npm ci",
-    "build": "cd frontend && npm ci && npm run build",
+    "install": "cd frontend && npm install && cd ../backend && npm install",
+    "build": "cd frontend && npm install && npm run build && cd ../backend && npm install",
     "start": "cd backend && npm start"
   },
   "engines": {
     "node": ">=14.0.0"
-  }
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ]
 }
