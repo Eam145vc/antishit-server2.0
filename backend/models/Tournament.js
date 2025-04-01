@@ -1,4 +1,6 @@
 // models/Tournament.js - Modelo para torneos
+const mongoose = require('mongoose');
+
 const tournamentSchema = mongoose.Schema({
     name: {
       type: String,
