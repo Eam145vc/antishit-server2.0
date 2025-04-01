@@ -12,6 +12,7 @@ const {
 } = require('../controllers/tournamentController');
 const { protect, admin } = require('../middleware/auth');
 
+// Rutas simplificadas
 router.post('/', protect, createTournament);
 router.get('/', protect, getTournaments);
 router.get('/:id', protect, getTournamentById);
