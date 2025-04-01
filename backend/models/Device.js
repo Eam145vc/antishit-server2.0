@@ -1,4 +1,6 @@
 // models/Device.js - Modelo para Dispositivos
+const mongoose = require('mongoose');
+
 const deviceSchema = mongoose.Schema({
   player: {
     type: mongoose.Schema.Types.ObjectId,
