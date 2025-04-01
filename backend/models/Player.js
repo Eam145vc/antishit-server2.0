@@ -1,4 +1,6 @@
 // models/Player.js - Modelo para Jugadores
+const mongoose = require('mongoose');
+
 const playerSchema = mongoose.Schema({
   activisionId: {
     type: String,
