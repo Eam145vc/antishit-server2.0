@@ -6,15 +6,9 @@ import PlayerDetail from './components/players/PlayerDetail';
 import DeviceList from './components/devices/DeviceList';
 import DeviceDetail from './components/devices/DeviceDetail';
 import ScreenshotGallery from './components/screenshots/ScreenshotGallery';
-import ScreenshotDetail from './components/screenshots/ScreenshotDetail';
 import LiveMonitor from './components/monitor/LiveMonitor';
 import Alerts from './components/alerts/Alerts';
-import TournamentList from './components/tournaments/TournamentList';
-import TournamentDetail from './components/tournaments/TournamentDetail';
-import UserManagement from './components/admin/UserManagement';
 import NotFound from './components/layout/NotFound';
-import HWIDAnalyzer from './components/players/HWIDAnalyzer';
-import DevicesByType from './components/devices/DevicesByType';
 import Profile from './components/auth/Profile';
 
 // Rutas Protegidas
@@ -71,14 +65,6 @@ const routes = [
     ),
   },
   {
-    path: '/players/hwid-analysis',
-    element: (
-      <ProtectedRoute>
-        <HWIDAnalyzer />
-      </ProtectedRoute>
-    ),
-  },
-  {
     path: '/devices',
     element: (
       <ProtectedRoute>
@@ -95,26 +81,10 @@ const routes = [
     ),
   },
   {
-    path: '/devices/by-type/:type',
-    element: (
-      <ProtectedRoute>
-        <DevicesByType />
-      </ProtectedRoute>
-    ),
-  },
-  {
     path: '/screenshots',
     element: (
       <ProtectedRoute>
         <ScreenshotGallery />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/screenshots/:id',
-    element: (
-      <ProtectedRoute>
-        <ScreenshotDetail />
       </ProtectedRoute>
     ),
   },
@@ -139,30 +109,6 @@ const routes = [
     element: (
       <ProtectedRoute>
         <Alerts />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/tournaments',
-    element: (
-      <ProtectedRoute>
-        <TournamentList />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/tournaments/:id',
-    element: (
-      <ProtectedRoute>
-        <TournamentDetail />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/admin/users',
-    element: (
-      <ProtectedRoute adminOnly>
-        <UserManagement />
       </ProtectedRoute>
     ),
   },
