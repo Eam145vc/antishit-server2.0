@@ -4,14 +4,19 @@ const {
   loginUser, 
   registerUser, 
   getUserProfile, 
-  getUsers 
+  updateUserProfile,
+  changePassword,
+  getUsers,
+  deleteUser 
 } = require('../controllers/authController');
 const { protect, admin } = require('../middleware/auth');
 
-// Asegúrate de que cada ruta tenga un callback definido
-router.post('/login', (req, res) => loginUser(req, res));
-router.post('/register', protect, admin, (req, res) => registerUser(req, res));
-router.get('/profile', protect, (req, res) => getUserProfile(req, res));
-router.get('/users', protect, admin, (req, res) => getUsers(req, res));
+router.post('/login', loginUser);
+router.post('/register', protect, admin, registerUser);
+router.get('/profile', protect, getUserProfile);
+router.put('/profile', protect, updateUserProfile);
+router.put('/password', protect, changePassword);
+router.get('/users', protect, admin, getUsers);
+router.delete('/users/:id', protect, admin, deleteUser);
 
 module.exports = router;
