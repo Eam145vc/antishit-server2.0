@@ -4,7 +4,7 @@
   "description": "Anti-Cheat Monitoring System",
   "scripts": {
     "install": "cd frontend && npm install && cd ../backend && npm install",
-    "build": "cd frontend && node ./node_modules/vite/bin/vite.js build",
+    "build": "cd frontend && npm run build",
     "start": "cd backend && npm start"
   },
   "engines": {
