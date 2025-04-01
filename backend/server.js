@@ -34,12 +34,16 @@ app.get('/health', (req, res) => {
 // Servir archivos estáticos en producción
 if (process.env.NODE_ENV === 'production') {
   const staticPath = path.join(__dirname, '../frontend/dist');
+  console.log('Serving static files from:', staticPath);
+  
   app.use(express.static(staticPath));
   
   // Cualquier ruta que no sea /api redirige al index.html
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api')) {
       res.sendFile(path.resolve(staticPath, 'index.html'));
+    } else {
+      res.status(404).json({ message: 'Not Found' });
     }
   });
 }
