@@ -41,10 +41,17 @@ app.get('/health', (req, res) => {
 
 // Servir archivos estáticos en producción
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+  // Establecer la ruta correcta para los archivos estáticos
+  const staticPath = path.join(__dirname, '../frontend/dist');
+  console.log('Serving static files from:', staticPath);
   
+  app.use(express.static(staticPath));
+  
+  // Cualquier ruta que no sea /api redirige al index.html
   app.get('*', (req, res) => {
-    res.sendFile(path.resolve(__dirname, '../frontend/dist', 'index.html'));
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.resolve(staticPath, 'index.html'));
+    }
   });
 }
 
@@ -62,6 +69,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
   console.log(`Servidor ejecutándose en el puerto ${PORT}`);
+  console.log('Entorno:', process.env.NODE_ENV || 'development');
 });
 
 // Configurar Socket.io
@@ -75,3 +83,5 @@ process.on('unhandledRejection', (err) => {
     process.exit(1);
   });
 });
+
+module.exports = server; // Para pruebas
