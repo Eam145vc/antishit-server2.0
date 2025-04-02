@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -20,15 +20,12 @@ export const AuthProvider = ({ children }) => {
         return;
       }
       
-      // Configurar token en header por defecto
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
       try {
-        const { data } = await axios.get('/api/auth/profile');
+        const { data } = await api.get('/auth/profile');
         setUser(data);
       } catch (error) {
         localStorage.removeItem('token');
-        delete axios.defaults.headers.common['Authorization'];
+        console.error("Error verificando autenticación:", error);
       }
       
       setLoading(false);
@@ -40,11 +37,8 @@ export const AuthProvider = ({ children }) => {
   // Login
   const login = async (email, password) => {
     try {
-      const { data } = await axios.post('/api/auth/login', { email, password });
+      const { data } = await api.post('/auth/login', { email, password });
       localStorage.setItem('token', data.token);
-      
-      // Configurar token en header por defecto
-      axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
       
       setUser(data);
       toast.success('Inicio de sesión exitoso');
@@ -53,14 +47,13 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       const message = error.response?.data?.message || 'Error al iniciar sesión';
       toast.error(message);
-      return false;
+      throw error;
     }
   };
   
   // Logout
   const logout = () => {
     localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
     setUser(null);
     navigate('/login');
     toast.success('Sesión cerrada');
