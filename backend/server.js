@@ -4,6 +4,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const { connectDB } = require('./config/db');
 const socketSetup = require('./utils/socket');
+const { setupDisconnectionCheck } = require('./controllers/monitorController');
 
 // Inicializar app
 const app = express();
@@ -57,6 +58,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
       
       // Configurar Socket.io solo después de la conexión exitosa a DB
       socketSetup(server);
+      
+      // Configurar verificación automática de desconexiones
+      setupDisconnectionCheck();
       
       console.log('Aplicación lista para recibir solicitudes');
     })
