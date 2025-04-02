@@ -1,8 +1,7 @@
-// src/components/players/SystemInfoPanel.jsx
 import { CpuChipIcon, DeviceTabletIcon, ComputerDesktopIcon, LanguageIcon } from '@heroicons/react/24/outline';
 
 const SystemInfoPanel = ({ player }) => {
-  const { systemInfo, hardwareInfo } = player;
+  const { systemInfo = {}, hardwareInfo = {} } = player || {};
   
   const infoSections = [
     {
@@ -43,14 +42,18 @@ const SystemInfoPanel = ({ player }) => {
       title: 'Inicialización',
       icon: DeviceTabletIcon,
       items: [
-        { label: 'PC inicio', value: player.pcStartTime },
-        { label: 'Cliente inicio', value: player.clientStartTime ? new Date(player.clientStartTime).toLocaleString() : null },
+        { label: 'PC inicio', value: player?.pcStartTime },
+        { label: 'Cliente inicio', value: player?.clientStartTime ? new Date(player.clientStartTime).toLocaleString() : null },
         { label: 'Windows instalado', value: systemInfo?.windowsInstallDate },
       ].filter(item => item.value)
     }
   ];
   
-  if (!systemInfo && !hardwareInfo) {
+  // Verificar si hay alguna información disponible
+  const hasInfo = infoSections.some(section => section.items.length > 0) || 
+                (player?.hardwareIds && player.hardwareIds.length > 0);
+  
+  if (!hasInfo) {
     return (
       <div className="rounded-md bg-gray-50 p-6 text-center">
         <p className="text-gray-500">No hay información disponible</p>
@@ -61,35 +64,40 @@ const SystemInfoPanel = ({ player }) => {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {infoSections.map((section) => (
-          <div key={section.title} className="card">
-            <div className="card-header flex items-center">
-              <section.icon className="mr-2 h-5 w-5 text-gray-400" />
-              <h3 className="text-lg font-medium text-gray-900">{section.title}</h3>
+        {infoSections.map((section) => {
+          // Solo renderizar secciones que tengan ítems
+          if (section.items.length === 0) return null;
+          
+          return (
+            <div key={section.title} className="card">
+              <div className="card-header flex items-center">
+                <section.icon className="mr-2 h-5 w-5 text-gray-400" />
+                <h3 className="text-lg font-medium text-gray-900">{section.title}</h3>
+              </div>
+              <div className="card-body">
+                <dl className="divide-y divide-gray-200">
+                  {section.items.map((item) => (
+                    <div key={item.label} className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                      <dt className="text-sm font-medium text-gray-500">{item.label}</dt>
+                      <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                        {item.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
             </div>
-            <div className="card-body">
-              <dl className="divide-y divide-gray-200">
-                {section.items.map((item) => (
-                  <div key={item.label} className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-                    <dt className="text-sm font-medium text-gray-500">{item.label}</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
-                      {item.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       
       {/* HWIDs para detección de cuentas duplicadas */}
-      <div className="card">
-        <div className="card-header">
-          <h3 className="text-lg font-medium text-gray-900">Hardware IDs</h3>
-        </div>
-        <div className="card-body">
-          {player.hardwareIds?.length > 0 ? (
+      {player?.hardwareIds && player.hardwareIds.length > 0 && (
+        <div className="card">
+          <div className="card-header">
+            <h3 className="text-lg font-medium text-gray-900">Hardware IDs</h3>
+          </div>
+          <div className="card-body">
             <div className="space-y-3">
               {player.hardwareIds.map((hwid, index) => (
                 <div
@@ -100,11 +108,9 @@ const SystemInfoPanel = ({ player }) => {
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="text-sm text-gray-500">No hay identificadores de hardware registrados</p>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
