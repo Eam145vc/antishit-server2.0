@@ -31,15 +31,20 @@ const registerUser = async (req, res) => {
       role: userRole
     });
 
-    if (user) {
-      console.log('[DEBUG] Usuario registrado exitosamente:', user._id);
-      return res.status(201).json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        token: generateToken(user._id)
-      });
+   if (user) {
+  console.log('[DEBUG] Usuario registrado exitosamente:', user._id);
+
+  return res.status(201).json({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    token: generateToken(user._id),
+  });
+} else {
+  console.log('[ERROR] No se pudo registrar el usuario.');
+  return res.status(400).json({ message: 'No se pudo registrar el usuario' });
+}
     } else {
       console.log('[DEBUG] Fallo al crear el usuario');
       return res.status(400).json({ message: 'Datos de usuario inválidos' });
