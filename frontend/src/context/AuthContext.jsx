@@ -10,7 +10,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   
-  // Escuchar el evento de autorización para redirigir con React Router
   useEffect(() => {
     const handleUnauthorized = () => {
       navigate('/login');
@@ -27,17 +26,14 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkAuth = async () => {
       const token = localStorage.getItem('token');
-      
       if (!token) {
         setLoading(false);
         return;
       }
-      
       try {
         const { data } = await api.get('/auth/profile');
         setUser(data);
       } catch (error) {
-        // Si hay error al verificar el token, limpiar el token
         localStorage.removeItem('token');
         console.error("Error verificando autenticación:", error);
       } finally {
@@ -48,12 +44,9 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
   
-  // Función de login
   const login = async (email, password) => {
     try {
       const { data } = await api.post('/auth/login', { email, password });
-      
-      // Guardar token y actualizar estado de usuario
       localStorage.setItem('token', data.token);
       setUser(data);
       toast.success('Inicio de sesión exitoso');
@@ -64,7 +57,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
   
-  // Función de logout
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
