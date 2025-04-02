@@ -12,8 +12,8 @@ connectDB();
 // Inicializar app
 const app = express();
 
-// Middleware CORS mejorado
-app.use(cors({
+// Configuración de CORS más permisiva y detallada
+const corsOptions = {
   origin: [
     'https://anti5-0-site.onrender.com', 
     'http://localhost:3000',
@@ -21,13 +21,19 @@ app.use(cors({
     /\.onrender\.com$/  // Permitir subdominios de Render
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  optionsSuccessStatus: 200
+};
 
+app.use(cors(corsOptions));
+
+// Middleware para logging de solicitudes
+app.use(morgan('dev'));
+
+// Parsers
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(morgan('dev'));
 
 // Rutas de la API
 app.use('/api/auth', require('./routes/auth'));
@@ -37,52 +43,18 @@ app.use('/api/screenshots', require('./routes/screenshots'));
 app.use('/api/monitor', require('./routes/monitor'));
 app.use('/api/tournaments', require('./routes/tournaments'));
 
-// Manejador específico para 404 en rutas de API
-app.all('/api/*', (req, res) => {
-  res.status(404).json({ message: 'API route not found' });
+// Middleware de manejo de errores
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    message: 'Algo salió mal en el servidor',
+    error: process.env.NODE_ENV === 'development' ? err.message : {}
+  });
 });
 
-// Ruta de estado para Render con más información
-app.get('/health', async (req, res) => {
-  try {
-    const dbStatus = mongoose.connection.readyState;
-    const dbStatusMessage = 
-      dbStatus === 0 ? 'disconnected' :
-      dbStatus === 1 ? 'connected' :
-      dbStatus === 2 ? 'connecting' :
-      dbStatus === 3 ? 'disconnecting' : 'unknown';
-
-    res.status(200).json({ 
-      status: 'ok', 
-      database: {
-        status: dbStatusMessage,
-        host: mongoose.connection.host
-      },
-      environment: process.env.NODE_ENV || 'development',
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Health check error:', error);
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
-    });
-  }
-});
-
-// Ruta raíz para verificar que el servidor está funcionando
+// Ruta raíz para verificación
 app.get('/', (req, res) => {
   res.send('API Anti-Cheat funcionando correctamente');
-});
-
-// Manejo de errores mejorado
-app.use((err, req, res, next) => {
-  console.error('Error global:', err.stack);
-  res.status(500).json({ 
-    error: true, 
-    message: err.message || 'Error interno del servidor',
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-  });
 });
 
 // Iniciar servidor
@@ -95,13 +67,4 @@ const server = app.listen(PORT, () => {
 // Configurar Socket.io
 socketSetup(server);
 
-// Manejo de errores no controlados
-process.on('unhandledRejection', (err) => {
-  console.log('UNHANDLED REJECTION! Cerrando servidor...');
-  console.log(err.name, err.message);
-  server.close(() => {
-    process.exit(1);
-  });
-});
-
-module.exports = server; // Para pruebas
+module.exports = server;
