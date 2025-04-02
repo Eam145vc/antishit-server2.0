@@ -1,4 +1,5 @@
 import { Navigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
 import Dashboard from './components/dashboard/Dashboard';
 import Login from './components/auth/Login';
 import PlayerList from './components/players/PlayerList';
@@ -13,15 +14,27 @@ import Profile from './components/auth/Profile';
 
 // Rutas Protegidas
 const ProtectedRoute = ({ children, adminOnly = false }) => {
-  // Implementación simplificada, la autenticación real usará el contexto
-  const isAuthenticated = true; // localStorage.getItem('token') !== null;
-  const userRole = 'admin'; // obtener de localStorage o mejor del contexto
+  const { isAuthenticated, isAdmin, loading } = useAuth();
   
+  // Mostrar carga mientras se verifica la autenticación
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-600 border-r-transparent"></div>
+          <p className="mt-2 text-gray-600">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si no está autenticado, redirigir a login
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
   }
   
-  if (adminOnly && userRole !== 'admin') {
+  // Si requiere admin y no es admin, redirigir a dashboard
+  if (adminOnly && !isAdmin) {
     return <Navigate to="/dashboard" />;
   }
   
