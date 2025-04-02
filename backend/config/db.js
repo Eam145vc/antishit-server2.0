@@ -22,14 +22,12 @@ const connectDB = async () => {
 
     mongoose.connection.on('error', (err) => {
       console.error(`Error de conexión de Mongoose: ${err.message}`);
-      // Intentar reconectar automáticamente
-      setTimeout(connectDB, 5000);
+      // No intentamos reconectar, solo registramos el error
     });
 
     mongoose.connection.on('disconnected', () => {
       console.log('Conexión de Mongoose perdida');
-      // Intentar reconectar automáticamente
-      setTimeout(connectDB, 5000);
+      // No intentamos reconectar, solo registramos el evento
     });
 
     return conn;
@@ -37,10 +35,10 @@ const connectDB = async () => {
     console.error(`Error de conexión a MongoDB: ${error.message}`);
     console.error('Detalles del error:', error);
     
-    // Intentar reconectar
-    setTimeout(connectDB, 5000);
+    // No llamamos a process.exit() aquí para permitir que la aplicación siga funcionando
+    // No intentamos reconectar automáticamente
     
-    process.exit(1);
+    throw error; // Propagamos el error para manejarlo donde se llame a esta función
   }
 };
 
