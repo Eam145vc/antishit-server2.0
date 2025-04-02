@@ -277,7 +277,10 @@ const PlayerDetail = () => {
         </Tab.List>
         <Tab.Panels className="mt-2">
           <Tab.Panel className="rounded-xl bg-white p-3">
-            <SystemInfoPanel systemInfo={systemInfo} />
+            <SystemInfoPanel 
+              systemInfo={systemInfo} 
+              hardwareInfo={player.hardwareInfo || {}} 
+            />
           </Tab.Panel>
           <Tab.Panel className="rounded-xl bg-white p-3">
             <DeviceList devices={devices} isEmbedded />
