@@ -24,11 +24,12 @@ export const AuthProvider = ({ children }) => {
         const { data } = await api.get('/auth/profile');
         setUser(data);
       } catch (error) {
+        // Si hay error al verificar el token, limpiar el token
         localStorage.removeItem('token');
         console.error("Error verificando autenticación:", error);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
     
     checkAuth();
@@ -38,15 +39,22 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const { data } = await api.post('/auth/login', { email, password });
+      
+      // Guardar token
       localStorage.setItem('token', data.token);
       
+      // Actualizar estado de usuario
       setUser(data);
+      
+      // Mostrar mensaje de éxito
       toast.success('Inicio de sesión exitoso');
+      
+      // Redirigir al dashboard
       navigate('/dashboard');
+      
       return true;
     } catch (error) {
-      const message = error.response?.data?.message || 'Error al iniciar sesión';
-      toast.error(message);
+      // El manejo de errores se realiza en el interceptor de axios
       throw error;
     }
   };
