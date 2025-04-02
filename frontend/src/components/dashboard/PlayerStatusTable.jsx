@@ -1,13 +1,28 @@
-import { Link } from 'react-router-dom';
-import { formatDistanceToNow } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { 
-  DeviceTabletIcon, 
-  ComputerDesktopIcon, 
-  ShieldExclamationIcon 
-} from '@heroicons/react/24/outline';
+import { useState } from 'react';
+import PlayerDetailsHoverCard from './PlayerDetailsHoverCard';
 
-const PlayerStatusTable = ({ players }) => {
+// Date formatting utility
+const formatDistanceToNow = (date) => {
+  const now = new Date();
+  const diffInSeconds = Math.floor((now - date) / 1000);
+  
+  if (diffInSeconds < 60) return 'hace menos de un minuto';
+  if (diffInSeconds < 3600) {
+    const minutes = Math.floor(diffInSeconds / 60);
+    return `hace ${minutes} minuto${minutes !== 1 ? 's' : ''}`;
+  }
+  if (diffInSeconds < 86400) {
+    const hours = Math.floor(diffInSeconds / 3600);
+    return `hace ${hours} hora${hours !== 1 ? 's' : ''}`;
+  }
+  
+  const days = Math.floor(diffInSeconds / 86400);
+  return `hace ${days} día${days !== 1 ? 's' : ''}`;
+};
+
+const PlayerStatusTable = ({ players, onPlayerSelect }) => {
+  const [hoveredPlayer, setHoveredPlayer] = useState(null);
+
   // Verificar si el jugador realmente está conectado
   const isPlayerOnline = (player) => {
     const lastSeenDate = new Date(player.lastSeen);
@@ -35,7 +50,7 @@ const PlayerStatusTable = ({ players }) => {
   };
 
   return (
-    <div className="overflow-hidden">
+    <div className="relative">
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
@@ -81,23 +96,31 @@ const PlayerStatusTable = ({ players }) => {
               const status = getPlayerStatus(player);
               
               return (
-                <tr key={player._id}>
+                <tr 
+                  key={player._id} 
+                  onMouseEnter={() => {
+                    setHoveredPlayer(player);
+                    onPlayerSelect && onPlayerSelect(player);
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredPlayer(null);
+                    onPlayerSelect && onPlayerSelect(null);
+                  }}
+                  className="relative hover:bg-gray-50 transition-colors"
+                >
                   <td className="whitespace-nowrap px-6 py-4">
                     <div className="flex items-center">
                       <div className={`h-2.5 w-2.5 rounded-full ${isOnline ? 'bg-success-500' : 'bg-gray-300'}`}></div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900 flex items-center">
-                          <Link 
-                            to={`/players/${player._id}`} 
-                            className="hover:text-primary-600 mr-2"
-                          >
-                            {player.activisionId}
-                          </Link>
+                          {player.activisionId}
                           {player.suspiciousActivity && (
-                            <ShieldExclamationIcon 
-                              className="h-4 w-4 text-danger-500" 
-                              title="Jugador marcado como sospechoso" 
-                            />
+                            <span 
+                              className="text-danger-500 ml-2" 
+                              title="Jugador marcado como sospechoso"
+                            >
+                              ⚠️
+                            </span>
                           )}
                         </div>
                       </div>
@@ -115,19 +138,13 @@ const PlayerStatusTable = ({ players }) => {
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
                     {player.lastSeen
-                      ? formatDistanceToNow(new Date(player.lastSeen), {
-                          addSuffix: true,
-                          locale: es
-                        })
+                      ? formatDistanceToNow(new Date(player.lastSeen))
                       : 'N/A'}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                    <Link
-                      to={`/players/${player._id}`}
-                      className="text-primary-600 hover:text-primary-900"
-                    >
+                    <span className="text-primary-600 hover:text-primary-900">
                       Detalles
-                    </Link>
+                    </span>
                   </td>
                 </tr>
               );
@@ -135,6 +152,15 @@ const PlayerStatusTable = ({ players }) => {
           )}
         </tbody>
       </table>
+
+      {/* Hover Details Card */}
+      {hoveredPlayer && (
+        <div className="absolute z-50 top-full left-0 mt-2 w-full pointer-events-none">
+          <div className="flex justify-center">
+            <PlayerDetailsHoverCard player={hoveredPlayer} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
