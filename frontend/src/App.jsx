@@ -1,13 +1,26 @@
-import { useRoutes } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import routes from './routes';
-import { useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
+import { SocketProvider } from './context/SocketContext';
+import Routes from './routes';
 import Layout from './components/layout/Layout';
+import { useAuth } from './context/AuthContext';
 
 const App = () => {
-  const { user } = useAuth();
-  const routeElement = useRoutes(routes);
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <SocketProvider>
+          <AppContent />
+        </SocketProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+};
 
+const AppContent = () => {
+  const { user } = useAuth();
+  
   // Si la ruta es login, mostrar sin layout
   const isLoginPage = window.location.pathname === '/login';
 
@@ -15,9 +28,11 @@ const App = () => {
     <>
       <Toaster position="top-right" />
       {isLoginPage || !user ? (
-        routeElement
+        <Routes />
       ) : (
-        <Layout>{routeElement}</Layout>
+        <Layout>
+          <Routes />
+        </Layout>
       )}
     </>
   );
