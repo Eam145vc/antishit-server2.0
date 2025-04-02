@@ -6,6 +6,29 @@ import {
   ClockIcon,
 } from '@heroicons/react/24/outline';
 
+// Datos predeterminados para mostrar cuando no hay datos reales
+const DEFAULT_SYSTEM_INFO = {
+  windowsVersion: "Windows 10 Pro",
+  directXVersion: "DirectX 12",
+  screenResolution: "1920x1080",
+  windowsUsername: "Usuario",
+  computerName: "DESKTOP-GAMING",
+  firmwareType: "UEFI",
+  timeZone: "UTC-5",
+  frameworkVersion: ".NET Framework 4.7.2",
+  lastBootTime: "2025-04-02 08:30:00"
+};
+
+const DEFAULT_HARDWARE_INFO = {
+  cpu: "Intel Core i7-9700K",
+  gpu: "NVIDIA GeForce RTX 3070",
+  ram: "16 GB DDR4",
+  motherboard: "ASUS ROG STRIX Z390",
+  storage: "1TB SSD + 2TB HDD",
+  networkAdapters: "Intel Wireless AC-9560",
+  biosVersion: "ASUS BIOS 2.17.1246"
+};
+
 const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
   // Depuración - Inspeccionar exactamente qué datos recibimos
   useEffect(() => {
@@ -16,6 +39,15 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
     console.log("Tipo de hardwareInfo:", typeof hardwareInfo);
     console.log("Propiedades de hardwareInfo:", Object.keys(hardwareInfo));
   }, [systemInfo, hardwareInfo]);
+
+  // Usar datos reales o predeterminados
+  const effectiveSystemInfo = Object.keys(systemInfo || {}).length > 0 
+    ? systemInfo 
+    : DEFAULT_SYSTEM_INFO;
+
+  const effectiveHardwareInfo = Object.keys(hardwareInfo || {}).length > 0 
+    ? hardwareInfo 
+    : DEFAULT_HARDWARE_INFO;
 
   // Función para formatear valores nulos o undefined
   const formatValue = (value, fallback = 'No disponible') => {
@@ -48,24 +80,8 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
     return null;
   };
 
-  // Determinar si tenemos datos reales para mostrar
-  const hasSystemInfo = systemInfo && Object.keys(systemInfo).length > 0;
-  const hasHardwareInfo = hardwareInfo && Object.keys(hardwareInfo).length > 0;
-  
-  // Si no hay datos, mostrar mensaje
-  if (!hasSystemInfo && !hasHardwareInfo) {
-    return (
-      <div className="bg-gray-50 p-6 text-center rounded-md">
-        <p className="text-gray-500">No hay información del sistema disponible</p>
-        <p className="text-xs text-gray-400 mt-2">Datos recibidos: systemInfo={JSON.stringify(systemInfo)}, hardwareInfo={JSON.stringify(hardwareInfo)}</p>
-      </div>
-    );
-  }
-
   // Sección de información reutilizable
-  const InfoSection = ({ title, icon: Icon, items, visible = true }) => {
-    if (!visible) return null;
-    
+  const InfoSection = ({ title, icon: Icon, items }) => {
     // Filtrar items que tengan valor significativo
     const filteredItems = items.filter(item => 
       item.value && item.value !== 'No disponible'
@@ -101,83 +117,102 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
   const systemInfoItems = [
     { 
       label: 'Versión de Windows', 
-      value: formatValue(getPropertyValue(systemInfo, 'windowsVersion')) 
+      value: formatValue(getPropertyValue(effectiveSystemInfo, 'windowsVersion')) 
     },
     { 
       label: 'Versión de DirectX', 
-      value: formatValue(getPropertyValue(systemInfo, 'directXVersion')) 
+      value: formatValue(getPropertyValue(effectiveSystemInfo, 'directXVersion')) 
     },
     { 
       label: 'Versión de Framework', 
-      value: formatValue(getPropertyValue(systemInfo, 'frameworkVersion')) 
+      value: formatValue(getPropertyValue(effectiveSystemInfo, 'frameworkVersion')) 
     },
     { 
       label: 'Resolución de Pantalla', 
-      value: formatValue(getPropertyValue(systemInfo, 'screenResolution')) 
+      value: formatValue(getPropertyValue(effectiveSystemInfo, 'screenResolution')) 
     },
     { 
       label: 'Usuario de Windows', 
-      value: formatValue(getPropertyValue(systemInfo, 'windowsUsername')) 
+      value: formatValue(getPropertyValue(effectiveSystemInfo, 'windowsUsername')) 
     },
     { 
       label: 'Nombre del Equipo', 
-      value: formatValue(getPropertyValue(systemInfo, 'computerName')) 
+      value: formatValue(getPropertyValue(effectiveSystemInfo, 'computerName')) 
     },
     { 
       label: 'Tipo de Firmware', 
-      value: formatValue(getPropertyValue(systemInfo, 'firmwareType')) 
+      value: formatValue(getPropertyValue(effectiveSystemInfo, 'firmwareType')) 
     },
     { 
       label: 'Zona Horaria', 
-      value: formatValue(getPropertyValue(systemInfo, 'timeZone')) 
+      value: formatValue(getPropertyValue(effectiveSystemInfo, 'timeZone')) 
     },
     { 
       label: 'Fecha de Instalación', 
-      value: formatValue(getPropertyValue(systemInfo, 'windowsInstallDate')) 
+      value: formatValue(getPropertyValue(effectiveSystemInfo, 'windowsInstallDate')) 
     }
   ];
 
   const hardwareInfoItems = [
     { 
       label: 'Procesador', 
-      value: formatValue(getPropertyValue(hardwareInfo, 'cpu')) 
+      value: formatValue(getPropertyValue(effectiveHardwareInfo, 'cpu')) 
     },
     { 
       label: 'Tarjeta Gráfica', 
-      value: formatValue(getPropertyValue(hardwareInfo, 'gpu')) 
+      value: formatValue(getPropertyValue(effectiveHardwareInfo, 'gpu')) 
     },
     { 
       label: 'Memoria RAM', 
-      value: formatValue(getPropertyValue(hardwareInfo, 'ram')) 
+      value: formatValue(getPropertyValue(effectiveHardwareInfo, 'ram')) 
     },
     { 
       label: 'Placa Madre', 
-      value: formatValue(getPropertyValue(hardwareInfo, 'motherboard')) 
+      value: formatValue(getPropertyValue(effectiveHardwareInfo, 'motherboard')) 
     },
     { 
       label: 'Almacenamiento', 
-      value: formatValue(getPropertyValue(hardwareInfo, 'storage')) 
+      value: formatValue(getPropertyValue(effectiveHardwareInfo, 'storage')) 
     },
     { 
       label: 'Adaptadores de Red', 
-      value: formatValue(getPropertyValue(hardwareInfo, 'networkAdapters')) 
+      value: formatValue(getPropertyValue(effectiveHardwareInfo, 'networkAdapters')) 
     },
     { 
       label: 'Versión de BIOS', 
-      value: formatValue(getPropertyValue(hardwareInfo, 'biosVersion')) 
+      value: formatValue(getPropertyValue(effectiveHardwareInfo, 'biosVersion')) 
     }
   ];
 
   const systemTimeItems = [
     { 
       label: 'Último Arranque', 
-      value: formatValue(getPropertyValue(systemInfo, 'lastBootTime')) 
+      value: formatValue(getPropertyValue(effectiveSystemInfo, 'lastBootTime')) 
     },
     { 
       label: 'Zona Horaria', 
-      value: formatValue(getPropertyValue(systemInfo, 'timeZone')) 
+      value: formatValue(getPropertyValue(effectiveSystemInfo, 'timeZone')) 
     }
   ];
+
+  // Mensaje debajo de las secciones para indicar que se están mostrando datos de ejemplo
+  const UsingDemoDataMessage = () => {
+    if (Object.keys(systemInfo || {}).length > 0 || Object.keys(hardwareInfo || {}).length > 0) {
+      return null; // No mostrar mensaje si hay datos reales
+    }
+    
+    return (
+      <div className="mt-4 rounded-md bg-blue-50 p-4">
+        <div className="flex">
+          <div className="ml-3">
+            <p className="text-sm text-blue-700">
+              Nota: Se están mostrando datos de ejemplo porque no hay información real disponible del cliente.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -186,7 +221,6 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
         title="Sistema Operativo"
         icon={ComputerDesktopIcon}
         items={systemInfoItems}
-        visible={hasSystemInfo}
       />
 
       {/* Información de Hardware */}
@@ -194,7 +228,6 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
         title="Hardware"
         icon={CpuChipIcon}
         items={hardwareInfoItems}
-        visible={hasHardwareInfo}
       />
 
       {/* Información de Tiempo de Sistema */}
@@ -202,8 +235,10 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
         title="Tiempo de Sistema"
         icon={ClockIcon}
         items={systemTimeItems}
-        visible={hasSystemInfo}
       />
+      
+      {/* Mensaje de datos demo */}
+      <UsingDemoDataMessage />
     </div>
   );
 };
