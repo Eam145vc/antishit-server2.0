@@ -20,20 +20,53 @@ const Dashboard = () => {
       try {
         setIsLoading(true);
         
-        // Obtener estadísticas generales
-        const statsResponse = await axios.get('/api/monitor/stats');
-        setStats(statsResponse.data);
-        
-        // Obtener jugadores activos
+        // Obtener jugadores activos - primero obtenemos todos los jugadores
         const playersResponse = await axios.get('/api/players');
-        const activePlayers = playersResponse.data.filter(player => {
-          // Verificar si el jugador está realmente online
-          const lastSeenDate = new Date(player.lastSeen);
-          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-          return player.isOnline && lastSeenDate > fiveMinutesAgo;
-        });
         
-        setPlayers(activePlayers);
+        if (playersResponse.data) {
+          // Filtrar jugadores que están realmente online
+          const activePlayers = playersResponse.data.filter(player => {
+            // Verificar si el jugador está realmente online
+            const lastSeenDate = new Date(player.lastSeen);
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+            return player.isOnline && lastSeenDate > fiveMinutesAgo;
+          });
+          
+          setPlayers(activePlayers);
+          
+          // Construir estadísticas manuales si la API de stats no está disponible
+          setStats({
+            players: {
+              total: playersResponse.data.length,
+              online: activePlayers.length,
+              playing: activePlayers.filter(p => p.isGameRunning).length
+            },
+            devices: { 
+              total: 0, 
+              byTrustLevel: { suspicious: 0 },
+              byType: {}
+            },
+            alerts: {
+              total: 0,
+              high: 0
+            },
+            screenshots: { 
+              total: 0, 
+              last24h: 0 
+            }
+          });
+        }
+        
+        // Intentar obtener estadísticas detalladas
+        try {
+          const statsResponse = await axios.get('/api/monitor/stats');
+          if (statsResponse.data) {
+            setStats(statsResponse.data);
+          }
+        } catch (statsError) {
+          console.warn('No se pudieron cargar estadísticas detalladas, usando básicas', statsError);
+        }
+        
         setError(null);
       } catch (err) {
         console.error('Error al cargar datos del dashboard:', err);
