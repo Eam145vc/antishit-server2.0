@@ -8,11 +8,7 @@ import {
   DeviceTabletIcon
 } from '@heroicons/react/24/outline';
 
-const SystemInfoPanel = ({ player = {} }) => {
-  // Extraer información del sistema
-  const systemInfo = player.systemInfo || {};
-  const hardwareInfo = player.hardwareInfo || {};
-
+const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
   // Función para formatear valores nulos o undefined
   const formatValue = (value, fallback = 'No disponible') => {
     return value && value !== 'N/A' ? value : fallback;
