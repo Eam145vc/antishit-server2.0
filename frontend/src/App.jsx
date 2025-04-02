@@ -1,4 +1,4 @@
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
@@ -8,13 +8,13 @@ import { useAuth } from './context/AuthContext';
 
 const App = () => {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AuthProvider>
         <SocketProvider>
           <AppContent />
         </SocketProvider>
       </AuthProvider>
-    </BrowserRouter>
+    </HashRouter>
   );
 };
 
@@ -22,7 +22,7 @@ const AppContent = () => {
   const { user } = useAuth();
   
   // Si la ruta es login, mostrar sin layout
-  const isLoginPage = window.location.pathname === '/login';
+  const isLoginPage = window.location.hash.includes('/login');
 
   return (
     <>
