@@ -7,7 +7,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'https://anti5-0.onrender.com',
+        target: 'https://anti5-0.onrender.com',
         changeOrigin: true
       }
     }
