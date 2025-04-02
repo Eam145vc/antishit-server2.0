@@ -4,10 +4,14 @@ services:
     env: node
     plan: free
     buildCommand: npm install
-    startCommand: node server.js
+    startCommand: node backend/server.js
     healthCheckPath: /
     healthCheckTimeout: 60
     autoDeploy: false
     envVars:
       - key: NODE_ENV
         value: production
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
