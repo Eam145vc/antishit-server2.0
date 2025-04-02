@@ -1,17 +1,39 @@
-// src/components/dashboard/PlayerStatusTable.jsx
 import { Link } from 'react-router-dom';
-import { useSocket } from '../../context/SocketContext';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { 
+  DeviceTabletIcon, 
+  ComputerDesktopIcon, 
+  ShieldExclamationIcon 
+} from '@heroicons/react/24/outline';
 
 const PlayerStatusTable = ({ players }) => {
-  const { requestScreenshot } = useSocket();
-  
-  // Manejar solicitud de captura
-  const handleRequestScreenshot = (playerId, activisionId, channelId) => {
-    requestScreenshot(activisionId, channelId);
+  // Verificar si el jugador realmente está conectado
+  const isPlayerOnline = (player) => {
+    const lastSeenDate = new Date(player.lastSeen);
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    return player.isOnline && lastSeenDate > fiveMinutesAgo;
   };
-  
+
+  // Obtener estado del jugador
+  const getPlayerStatus = (player) => {
+    if (!isPlayerOnline(player)) return 'Desconectado';
+    return player.isGameRunning ? 'Jugando' : 'Conectado';
+  };
+
+  // Obtener clase de estado
+  const getStatusClass = (player) => {
+    const status = getPlayerStatus(player);
+    switch (status) {
+      case 'Desconectado':
+        return 'bg-gray-100 text-gray-800';
+      case 'Jugando':
+        return 'bg-success-100 text-success-800';
+      default:
+        return 'bg-warning-100 text-warning-800';
+    }
+  };
+
   return (
     <div className="overflow-hidden">
       <table className="min-w-full divide-y divide-gray-200">
@@ -55,46 +77,37 @@ const PlayerStatusTable = ({ players }) => {
             </tr>
           ) : (
             players.map((player) => {
-              // Verificar si el jugador realmente está conectado
-              // Consideramos desconectado si:
-              // 1. isOnline es false explícitamente
-              // 2. Última actividad hace más de 5 minutos
-              const lastSeenDate = new Date(player.lastSeen);
-              const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-              const isReallyOnline = player.isOnline && lastSeenDate > fiveMinutesAgo;
+              const isOnline = isPlayerOnline(player);
+              const status = getPlayerStatus(player);
               
               return (
                 <tr key={player._id}>
                   <td className="whitespace-nowrap px-6 py-4">
                     <div className="flex items-center">
-                      <div className={`h-2.5 w-2.5 rounded-full ${isReallyOnline ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                      <div className={`h-2.5 w-2.5 rounded-full ${isOnline ? 'bg-success-500' : 'bg-gray-300'}`}></div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          <Link to={`/players/${player._id}`} className="hover:text-primary-600">
+                        <div className="text-sm font-medium text-gray-900 flex items-center">
+                          <Link 
+                            to={`/players/${player._id}`} 
+                            className="hover:text-primary-600 mr-2"
+                          >
                             {player.activisionId}
                           </Link>
+                          {player.suspiciousActivity && (
+                            <ShieldExclamationIcon 
+                              className="h-4 w-4 text-danger-500" 
+                              title="Jugador marcado como sospechoso" 
+                            />
+                          )}
                         </div>
-                        {player.nickname && (
-                          <div className="text-xs text-gray-500">{player.nickname}</div>
-                        )}
                       </div>
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4">
                     <span
-                      className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                        !isReallyOnline
-                          ? 'bg-gray-100 text-gray-800'
-                          : player.isGameRunning
-                          ? 'bg-success-100 text-success-800'
-                          : 'bg-warning-100 text-warning-800'
-                      }`}
+                      className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${getStatusClass(player)}`}
                     >
-                      {!isReallyOnline
-                        ? 'Desconectado'
-                        : player.isGameRunning
-                        ? 'Jugando'
-                        : 'Conectado'}
+                      {status}
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
@@ -109,19 +122,12 @@ const PlayerStatusTable = ({ players }) => {
                       : 'N/A'}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                    <button
-                      onClick={() => 
-                        handleRequestScreenshot(
-                          player._id, 
-                          player.activisionId, 
-                          player.currentChannelId
-                        )
-                      }
-                      disabled={!isReallyOnline}
-                      className={`${isReallyOnline ? 'text-primary-600 hover:text-primary-900' : 'text-gray-400 cursor-not-allowed'}`}
+                    <Link
+                      to={`/players/${player._id}`}
+                      className="text-primary-600 hover:text-primary-900"
                     >
-                      Capturar
-                    </button>
+                      Detalles
+                    </Link>
                   </td>
                 </tr>
               );
