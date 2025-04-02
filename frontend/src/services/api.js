@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Asegurarnos de que usamos la URL correcta del backend
-const API_BASE_URL = 'https://anti5-0.onrender.com/api';
+// Get API URL from environment, with explicit fallback
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://anti5-0.onrender.com/api';
 
 // Create axios instance with base configuration
 const api = axios.create({
