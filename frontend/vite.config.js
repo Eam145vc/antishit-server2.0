@@ -8,7 +8,9 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'https://anti5-0.onrender.com',
-        changeOrigin: true
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api/, '')
       }
     }
   },
