@@ -45,8 +45,9 @@ app.get('/health', (req, res) => {
 
 // CUARTO: Servir archivos estáticos en producción
 if (process.env.NODE_ENV === 'production') {
-  // Cambiar esta línea para usar una ruta absoluta o verificar primero si existe
-  const staticPath = path.resolve(__dirname, '../frontend/dist');
+  // Modificación: usar la ruta relativa correcta o una ruta absoluta completa
+  const staticPath = path.join(__dirname, '../frontend/dist');
+  // Alternativa: const staticPath = '/opt/render/project/src/frontend/dist';
   
   // Verificar si la ruta existe y loggear mensajes útiles
   try {
