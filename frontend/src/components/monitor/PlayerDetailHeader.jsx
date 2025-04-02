@@ -1,4 +1,4 @@
-// src/components/monitor/PlayerDetailHeader.jsx (continuación)
+// src/components/monitor/PlayerDetailHeader.jsx
 import { useState } from 'react';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
@@ -14,6 +14,14 @@ import { useSocket } from '../../context/SocketContext';
 const PlayerDetailHeader = ({ player }) => {
   const [isReporting, setIsReporting] = useState(false);
   const { requestScreenshot } = useSocket();
+  
+  // Verificar si el jugador realmente está conectado
+  // Consideramos desconectado si:
+  // 1. isOnline es false explícitamente
+  // 2. Última actividad hace más de 5 minutos
+  const lastSeenDate = new Date(player.lastSeen);
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  const isReallyOnline = player.isOnline && lastSeenDate > fiveMinutesAgo;
   
   const handleRequestScreenshot = () => {
     requestScreenshot(player.activisionId, player.currentChannelId);
@@ -40,7 +48,7 @@ const PlayerDetailHeader = ({ player }) => {
         <div className="flex flex-col items-start sm:flex-row sm:items-center sm:justify-between">
           <div className="mb-4 sm:mb-0">
             <div className="flex items-center">
-              <div className={`h-3 w-3 rounded-full ${player.isOnline ? 'bg-success-500' : 'bg-gray-300'}`}></div>
+              <div className={`h-3 w-3 rounded-full ${isReallyOnline ? 'bg-success-500' : 'bg-gray-300'}`}></div>
               <h1 className="ml-2 text-2xl font-bold text-gray-900">
                 {player.activisionId}
               </h1>
@@ -61,9 +69,9 @@ const PlayerDetailHeader = ({ player }) => {
           <div className="flex space-x-3">
             <button
               onClick={handleRequestScreenshot}
-              disabled={!player.isOnline}
+              disabled={!isReallyOnline}
               className={`rounded-md px-3 py-2 text-sm font-medium ${
-                player.isOnline
+                isReallyOnline
                   ? 'bg-primary-600 text-white hover:bg-primary-700'
                   : 'bg-gray-200 text-gray-500 cursor-not-allowed'
               }`}
@@ -98,14 +106,14 @@ const PlayerDetailHeader = ({ player }) => {
               <span className="ml-2 text-sm font-medium text-gray-500">Estado:</span>
               <span
                 className={`ml-2 inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                  !player.isOnline
+                  !isReallyOnline
                     ? 'bg-gray-100 text-gray-800'
                     : player.isGameRunning
                     ? 'bg-success-100 text-success-800'
                     : 'bg-warning-100 text-warning-800'
                 }`}
               >
-                {!player.isOnline
+                {!isReallyOnline
                   ? 'Desconectado'
                   : player.isGameRunning
                   ? 'Jugando'
