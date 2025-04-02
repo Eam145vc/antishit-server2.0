@@ -1,90 +1,24 @@
 const User = require('../models/User');
 const { generateToken } = require('../config/auth');
 
-// Login de usuario con registro de depuración
-const loginUser = async (req, res) => {
-  try {
-    console.log('[DEBUG] Login request received');
-    console.log('[DEBUG] Request body:', req.body);
-
-    const { email, password } = req.body;
-
-    // Validaciones
-    if (!email || !password) {
-      console.log('[DEBUG] Missing email or password');
-      return res.status(400).json({ message: 'Email y contraseña son requeridos' });
-    }
-
-    // Verificar si el usuario existe
-    const user = await User.findOne({ email });
-    console.log('[DEBUG] User found:', !!user);
-
-    if (!user) {
-      console.log(`[DEBUG] No user found with email: ${email}`);
-      return res.status(401).json({ message: 'Credenciales inválidas' });
-    }
-
-    // Verificar contraseña
-    const isMatch = await user.matchPassword(password);
-    console.log('[DEBUG] Password match:', isMatch);
-
-    if (!isMatch) {
-      console.log(`[DEBUG] Invalid password for email: ${email}`);
-      return res.status(401).json({ message: 'Credenciales inválidas' });
-    }
-
-    // Generar token
-    const token = generateToken(user._id);
-    console.log('[DEBUG] Token generated successfully');
-
-    res.json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      token: token
-    });
-  } catch (error) {
-    console.error('[ERROR] Login error:', error);
-    res.status(500).json({ 
-      message: 'Error en el inicio de sesión',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
-
-// Resto de las funciones de autenticación permanecen igual
-
-module.exports = {
-  loginUser,
-  // otras exportaciones...
-};
-
-const User = require('../models/User');
-const { generateToken } = require('../config/auth');
-
 // Registro de usuario con lógica para primer usuario
 const registerUser = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
-    // Validaciones básicas
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Todos los campos son requeridos' });
     }
 
-    // Verificar si el usuario ya existe
     const userExists = await User.findOne({ email });
 
     if (userExists) {
       return res.status(400).json({ message: 'El correo electrónico ya está registrado' });
     }
 
-    // Verificar si es el primer usuario (se convierte en admin)
     const userCount = await User.countDocuments();
     const userRole = userCount === 0 ? 'admin' : (role || 'judge');
 
-    // Crear nuevo usuario
     const user = await User.create({
       name,
       email,
@@ -112,38 +46,48 @@ const registerUser = async (req, res) => {
 // Login de usuario
 const loginUser = async (req, res) => {
   try {
+    console.log('[DEBUG] Login request received');
+    console.log('[DEBUG] Request body:', req.body);
+
     const { email, password } = req.body;
 
-    // Validaciones
     if (!email || !password) {
+      console.log('[DEBUG] Missing email or password');
       return res.status(400).json({ message: 'Email y contraseña son requeridos' });
     }
 
-    // Verificar si el usuario existe
     const user = await User.findOne({ email });
+    console.log('[DEBUG] User found:', !!user);
 
     if (!user) {
+      console.log(`[DEBUG] No user found with email: ${email}`);
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
 
-    // Verificar contraseña
     const isMatch = await user.matchPassword(password);
+    console.log('[DEBUG] Password match:', isMatch);
 
     if (!isMatch) {
+      console.log(`[DEBUG] Invalid password for email: ${email}`);
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
 
-    // Generar token
+    const token = generateToken(user._id);
+    console.log('[DEBUG] Token generated successfully');
+
     res.json({
       _id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
-      token: generateToken(user._id)
+      token: token
     });
   } catch (error) {
-    console.error('Error en login:', error);
-    res.status(500).json({ message: error.message });
+    console.error('[ERROR] Login error:', error);
+    res.status(500).json({ 
+      message: 'Error en el inicio de sesión',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
@@ -171,10 +115,8 @@ const updateUserProfile = async (req, res) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    // Actualizar campos
     user.name = req.body.name || user.name;
     
-    // Solo actualizar contraseña si se proporciona
     if (req.body.password) {
       user.password = req.body.password;
     }
@@ -208,14 +150,12 @@ const changePassword = async (req, res) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    // Verificar contraseña actual
     const isMatch = await user.matchPassword(currentPassword);
 
     if (!isMatch) {
       return res.status(401).json({ message: 'Contraseña actual incorrecta' });
     }
 
-    // Actualizar contraseña
     user.password = newPassword;
     await user.save();
 
@@ -246,7 +186,6 @@ const deleteUser = async (req, res) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    // Evitar que un administrador se elimine a sí mismo
     if (user._id.toString() === req.user._id.toString()) {
       return res.status(400).json({ message: 'No puedes eliminar tu propia cuenta' });
     }
