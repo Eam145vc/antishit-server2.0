@@ -41,8 +41,13 @@ const Dashboard = () => {
         setPlayers(playersResponse.data);
         
         // Obtener alertas recientes
-        const alertsResponse = await api.get('/alerts?limit=5');
-        setRecentAlerts(alertsResponse.data);
+        try {
+          const alertsResponse = await api.get('/alerts?limit=5');
+          setRecentAlerts(alertsResponse.data);
+        } catch (error) {
+          console.error('Error al cargar alertas:', error);
+          setRecentAlerts([]);
+        }
         
         // Obtener dispositivos sospechosos
         const devicesResponse = await api.get('/devices/suspicious');
@@ -280,28 +285,3 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-          
-          {/* Alertas recientes */}
-          <div className="card">
-            <div className="card-header flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">
-                Alertas Recientes
-              </h3>
-              <Link
-                to="/alerts"
-                className="text-sm font-medium text-primary-600 hover:text-primary-500"
-              >
-                Ver todas
-              </Link>
-            </div>
-            <div className="card-body">
-              <RecentAlertsList alerts={recentAlerts} />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default Dashboard;
