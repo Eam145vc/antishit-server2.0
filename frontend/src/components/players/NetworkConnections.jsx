@@ -1,40 +1,44 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSocket } from '../../context/SocketContext';
 
-const NetworkConnections = ({ connections }) => {
+const NetworkConnections = ({ connections: initialConnections = [] }) => {
+  const [connections, setConnections] = useState(initialConnections);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProtocol, setFilterProtocol] = useState('');
-  
-  // Verificar si hay conexiones
-  const hasConnections = Array.isArray(connections) && connections.length > 0;
-  
-  // Filtrar conexiones
-  const filteredConnections = hasConnections ? connections.filter(
-    (connection) => {
-      // Filtro por búsqueda
-      const matchesSearch = !searchTerm || 
-        (connection.remoteAddress && connection.remoteAddress.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (connection.processName && connection.processName.toLowerCase().includes(searchTerm.toLowerCase()));
-      
-      // Filtro por protocolo
-      const matchesProtocol = !filterProtocol || connection.protocol === filterProtocol;
-      
-      return matchesSearch && matchesProtocol;
-    }
-  ) : [];
-  
+  const { socket } = useSocket();
+
+  // Escuchar actualizaciones en tiempo real de conexiones de red
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleMonitorUpdate = (data) => {
+      if (data.networkConnections) {
+        setConnections(data.networkConnections);
+      }
+    };
+
+    socket.on('monitor-update', handleMonitorUpdate);
+
+    return () => {
+      socket.off('monitor-update', handleMonitorUpdate);
+    };
+  }, [socket]);
+
   // Obtener protocolos únicos
-  const protocols = hasConnections 
-    ? [...new Set(connections.filter(c => c.protocol).map(c => c.protocol))]
-    : [];
-  
-  if (!hasConnections) {
-    return (
-      <div className="rounded-md bg-gray-50 p-6 text-center">
-        <p className="text-gray-500">No hay información de conexiones disponible</p>
-      </div>
-    );
-  }
-  
+  const protocols = [...new Set(connections.map(c => c.protocol).filter(Boolean))];
+
+  // Filtrar conexiones
+  const filteredConnections = connections.filter(connection => {
+    const matchesSearch = !searchTerm || 
+      (connection.localAddress && connection.localAddress.includes(searchTerm)) ||
+      (connection.remoteAddress && connection.remoteAddress.includes(searchTerm)) ||
+      (connection.processName && connection.processName.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesProtocol = !filterProtocol || connection.protocol === filterProtocol;
+    
+    return matchesSearch && matchesProtocol;
+  });
+
   return (
     <div className="space-y-4">
       {/* Controles de filtro */}
@@ -70,93 +74,52 @@ const NetworkConnections = ({ connections }) => {
         </div>
       </div>
       
-      {/* Tabla de conexiones */}
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-              >
-                Proceso
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-              >
-                Local
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-              >
-                Remoto
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-              >
-                Protocolo
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-              >
-                Estado
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 bg-white">
-            {filteredConnections.length === 0 ? (
+      {connections.length === 0 ? (
+        <div className="rounded-md bg-gray-50 p-6 text-center">
+          <p className="text-gray-500">No hay conexiones de red disponibles</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
               <tr>
-                <td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">
-                  No hay conexiones que coincidan con los filtros
-                </td>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Local</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remoto</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Protocolo</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proceso</th>
               </tr>
-            ) : (
-              filteredConnections.map((connection, index) => (
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredConnections.map((connection, index) => (
                 <tr key={index}>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <div className="text-sm font-medium text-gray-900">
-                      {connection.processName || 'Desconocido'}
-                    </div>
-                    {connection.processId && (
-                      <div className="text-xs text-gray-500">PID: {connection.processId}</div>
-                    )}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {connection.localAddress}:{connection.localPort}
                   </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                    {connection.localAddress || ''}
-                    {connection.localPort ? `:${connection.localPort}` : ''}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {connection.remoteAddress}:{connection.remotePort}
                   </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                    {connection.remoteAddress || ''}
-                    {connection.remotePort ? `:${connection.remotePort}` : ''}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
+                      connection.protocol === 'TCP' 
+                        ? 'bg-primary-100 text-primary-800' 
+                        : 'bg-warning-100 text-warning-800'
+                    }`}>
+                      {connection.protocol || 'N/A'}
+                    </span>
                   </td>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    {connection.protocol ? (
-                      <span
-                        className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                          connection.protocol === 'TCP'
-                            ? 'bg-primary-100 text-primary-800'
-                            : 'bg-warning-100 text-warning-800'
-                        }`}
-                      >
-                        {connection.protocol}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-gray-500">N/A</span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap">
                     {connection.state || 'N/A'}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {connection.processName || 'Desconocido'}
+                  </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };
