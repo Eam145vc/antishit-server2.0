@@ -1,6 +1,5 @@
-// src/components/players/PlayerDetail.jsx
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Tab } from '@headlessui/react';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
@@ -10,6 +9,7 @@ import ScreenshotGallery from '../screenshots/ScreenshotGallery';
 import SystemInfoPanel from './SystemInfoPanel';
 import ProcessList from './ProcessList';
 import NetworkConnections from './NetworkConnections';
+import toast from 'react-hot-toast';
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
@@ -17,6 +17,7 @@ function classNames(...classes) {
 
 const PlayerDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [player, setPlayer] = useState(null);
   const [devices, setDevices] = useState([]);
   const [screenshots, setScreenshots] = useState([]);
@@ -31,41 +32,80 @@ const PlayerDetail = () => {
       try {
         setIsLoading(true);
         
-        // Obtener información del jugador
-        const playerResponse = await axios.get(`/api/players/${id}`);
-        setPlayer(playerResponse.data);
+        // Usar URL base de la configuración
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
+        const token = localStorage.getItem('token');
         
-        // Obtener dispositivos del jugador
-        const devicesResponse = await axios.get(`/api/players/${id}/devices`);
-        setDevices(devicesResponse.data);
-        
-        // Obtener capturas de pantalla
-        const screenshotsResponse = await axios.get(`/api/screenshots/player/${id}?limit=10`);
-        setScreenshots(screenshotsResponse.data);
-        
-        // Obtener historial de monitoreo más reciente
-        const historyResponse = await axios.get(`/api/players/${id}/history?limit=1`);
-        
-        if (historyResponse.data.length > 0) {
-          const latestMonitorData = historyResponse.data[0];
-          setMonitorData(latestMonitorData);
-          
-          // Extraer procesos y conexiones de red
-          setProcessData(latestMonitorData.processes || []);
-          setNetworkData(latestMonitorData.networkConnections || []);
+        if (!token) {
+          // Si no hay token, redirigir a login
+          toast.error('Sesión expirada, por favor inicie sesión nuevamente');
+          navigate('/login');
+          return;
         }
         
-        setError(null);
+        const headers = {
+          'Authorization': `Bearer ${token}`
+        };
+        
+        // Obtener información del jugador
+        try {
+          const playerResponse = await axios.get(`${apiUrl}/players/${id}`, { headers });
+          setPlayer(playerResponse.data);
+        } catch (playerError) {
+          console.error('Error al cargar jugador:', playerError);
+          if (playerError.response?.status === 404) {
+            setError('Jugador no encontrado');
+          } else {
+            setError('Error al cargar datos del jugador');
+          }
+          // No detenemos la ejecución, intentamos cargar los otros datos
+        }
+        
+        // Obtener dispositivos del jugador
+        try {
+          const devicesResponse = await axios.get(`${apiUrl}/players/${id}/devices`, { headers });
+          setDevices(devicesResponse.data.all || []);
+        } catch (devicesError) {
+          console.error('Error al cargar dispositivos:', devicesError);
+          // No mostramos error, solo dejamos la lista vacía
+        }
+        
+        // Obtener capturas de pantalla
+        try {
+          const screenshotsResponse = await axios.get(`${apiUrl}/screenshots/player/${id}?limit=10`, { headers });
+          setScreenshots(screenshotsResponse.data);
+        } catch (screenshotsError) {
+          console.error('Error al cargar capturas:', screenshotsError);
+          // No mostramos error, solo dejamos la lista vacía
+        }
+        
+        // Obtener historial de monitoreo más reciente
+        try {
+          const historyResponse = await axios.get(`${apiUrl}/players/${id}/history?limit=1`, { headers });
+          
+          if (historyResponse.data && historyResponse.data.length > 0) {
+            const latestMonitorData = historyResponse.data[0];
+            setMonitorData(latestMonitorData);
+            
+            // Extraer procesos y conexiones de red
+            setProcessData(latestMonitorData.processes || []);
+            setNetworkData(latestMonitorData.networkConnections || []);
+          }
+        } catch (historyError) {
+          console.error('Error al cargar historial:', historyError);
+          // No mostramos error, solo dejamos los datos vacíos
+        }
+        
       } catch (err) {
+        console.error('Error general al cargar datos:', err);
         setError('Error al cargar los datos del jugador');
-        console.error(err);
       } finally {
         setIsLoading(false);
       }
     };
     
     fetchPlayerData();
-  }, [id]);
+  }, [id, navigate]);
   
   if (isLoading) {
     return (
@@ -78,7 +118,7 @@ const PlayerDetail = () => {
     );
   }
   
-  if (error || !player) {
+  if (error) {
     return (
       <div className="rounded-md bg-danger-50 p-4">
         <div className="flex">
@@ -90,16 +130,51 @@ const PlayerDetail = () => {
           </div>
           <div className="ml-3">
             <h3 className="text-sm font-medium text-danger-800">
-              Error al cargar la información del jugador
+              {error}
             </h3>
-            <div className="mt-2 text-sm text-danger-700">{error}</div>
-            <div className="mt-4">
+            <div className="mt-4 flex">
+              <button
+                type="button"
+                className="rounded-md bg-danger-50 px-2 py-1.5 text-sm font-medium text-danger-800 hover:bg-danger-100 mr-3"
+                onClick={() => navigate('/players')}
+              >
+                Volver a jugadores
+              </button>
               <button
                 type="button"
                 className="rounded-md bg-danger-50 px-2 py-1.5 text-sm font-medium text-danger-800 hover:bg-danger-100"
                 onClick={() => window.location.reload()}
               >
                 Reintentar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!player) {
+    return (
+      <div className="rounded-md bg-warning-50 p-4">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <ExclamationTriangleIcon 
+              className="h-5 w-5 text-warning-400" 
+              aria-hidden="true" 
+            />
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-warning-800">
+              No se encontró información del jugador
+            </h3>
+            <div className="mt-2">
+              <button
+                type="button"
+                className="rounded-md bg-warning-50 px-2 py-1.5 text-sm font-medium text-warning-800 hover:bg-warning-100"
+                onClick={() => navigate('/players')}
+              >
+                Volver a la lista de jugadores
               </button>
             </div>
           </div>
