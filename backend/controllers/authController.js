@@ -1,6 +1,68 @@
 const User = require('../models/User');
 const { generateToken } = require('../config/auth');
 
+// Login de usuario con registro de depuración
+const loginUser = async (req, res) => {
+  try {
+    console.log('[DEBUG] Login request received');
+    console.log('[DEBUG] Request body:', req.body);
+
+    const { email, password } = req.body;
+
+    // Validaciones
+    if (!email || !password) {
+      console.log('[DEBUG] Missing email or password');
+      return res.status(400).json({ message: 'Email y contraseña son requeridos' });
+    }
+
+    // Verificar si el usuario existe
+    const user = await User.findOne({ email });
+    console.log('[DEBUG] User found:', !!user);
+
+    if (!user) {
+      console.log(`[DEBUG] No user found with email: ${email}`);
+      return res.status(401).json({ message: 'Credenciales inválidas' });
+    }
+
+    // Verificar contraseña
+    const isMatch = await user.matchPassword(password);
+    console.log('[DEBUG] Password match:', isMatch);
+
+    if (!isMatch) {
+      console.log(`[DEBUG] Invalid password for email: ${email}`);
+      return res.status(401).json({ message: 'Credenciales inválidas' });
+    }
+
+    // Generar token
+    const token = generateToken(user._id);
+    console.log('[DEBUG] Token generated successfully');
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      token: token
+    });
+  } catch (error) {
+    console.error('[ERROR] Login error:', error);
+    res.status(500).json({ 
+      message: 'Error en el inicio de sesión',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Resto de las funciones de autenticación permanecen igual
+
+module.exports = {
+  loginUser,
+  // otras exportaciones...
+};
+
+const User = require('../models/User');
+const { generateToken } = require('../config/auth');
+
 // Registro de usuario con lógica para primer usuario
 const registerUser = async (req, res) => {
   try {
