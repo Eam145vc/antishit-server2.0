@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { Navigate } from 'react-router-dom';
-import api from '../../services/api'; // Usamos la instancia configurada
+import api from '../../services/api'; // Se utiliza la instancia configurada
 import toast from 'react-hot-toast';
 
 const Login = () => {
@@ -16,7 +16,6 @@ const Login = () => {
   
   const { login, isAuthenticated } = useAuth();
   
-  // Si ya está autenticado, redirigir al dashboard
   if (isAuthenticated) {
     return <Navigate to="/dashboard" />;
   }
@@ -28,7 +27,7 @@ const Login = () => {
     
     try {
       if (isLogin) {
-        // Inicio de sesión a través del AuthContext
+        // Inicio de sesión usando AuthContext
         await login(email, password);
       } else {
         // Registro
@@ -38,7 +37,7 @@ const Login = () => {
           return;
         }
         
-        // Usar la instancia de api para que se aplique la URL base
+        // Usar la instancia api para registro
         const response = await api.post('/auth/register', {
           name,
           email,
