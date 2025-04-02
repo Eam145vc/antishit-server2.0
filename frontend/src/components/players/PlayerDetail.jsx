@@ -40,7 +40,12 @@ const PlayerDetail = () => {
         // Actualizar datos en tiempo real
         if (data.processes) setProcessData(data.processes);
         if (data.networkConnections) setNetworkData(data.networkConnections);
-        if (data.systemInfo) setSystemInfo(data.systemInfo);
+        if (data.systemInfo) {
+          setSystemInfo(prevInfo => ({
+            ...prevInfo,
+            ...data.systemInfo
+          }));
+        }
       }
     };
 
@@ -74,6 +79,9 @@ const PlayerDetail = () => {
         const playerData = playerResponse.data;
         setPlayer(playerData);
         
+        // Establecer información del sistema inicial
+        setSystemInfo(playerData.systemInfo || {});
+        
         // Obtener dispositivos del jugador
         const devicesResponse = await axios.get(`${apiUrl}/players/${id}/devices`, { headers });
         setDevices(devicesResponse.data.all || []);
@@ -89,13 +97,15 @@ const PlayerDetail = () => {
           const latestMonitorData = historyResponse.data[0];
           setMonitorData(latestMonitorData);
           
-          // Establecer datos de procesos, red y sistema
+          // Establecer datos de procesos y red
           setProcessData(latestMonitorData.processes || []);
           setNetworkData(latestMonitorData.networkConnections || []);
-          setSystemInfo({
-            ...playerData.systemInfo,
+          
+          // Actualizar información del sistema
+          setSystemInfo(prevInfo => ({
+            ...prevInfo,
             ...latestMonitorData.systemInfo
-          });
+          }));
         }
         
         setError(null);
@@ -110,8 +120,180 @@ const PlayerDetail = () => {
     fetchPlayerData();
   }, [id, navigate]);
   
-  // Resto del código anterior...
-  // [mantener la implementación actual de renderizado]
+  if (isLoading) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-600 border-r-transparent"></div>
+          <p className="mt-2 text-gray-600">Cargando información del jugador...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="rounded-md bg-danger-50 p-4">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <ExclamationTriangleIcon 
+              className="h-5 w-5 text-danger-400" 
+              aria-hidden="true" 
+            />
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-danger-800">
+              {error}
+            </h3>
+            <div className="mt-4 flex">
+              <button
+                type="button"
+                className="rounded-md bg-danger-50 px-2 py-1.5 text-sm font-medium text-danger-800 hover:bg-danger-100 mr-3"
+                onClick={() => navigate('/players')}
+              >
+                Volver a jugadores
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-danger-50 px-2 py-1.5 text-sm font-medium text-danger-800 hover:bg-danger-100"
+                onClick={() => window.location.reload()}
+              >
+                Reintentar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!player) {
+    return (
+      <div className="rounded-md bg-warning-50 p-4">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <ExclamationTriangleIcon 
+              className="h-5 w-5 text-warning-400" 
+              aria-hidden="true" 
+            />
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-warning-800">
+              No se encontró información del jugador
+            </h3>
+            <div className="mt-2">
+              <button
+                type="button"
+                className="rounded-md bg-warning-50 px-2 py-1.5 text-sm font-medium text-warning-800 hover:bg-warning-100"
+                onClick={() => navigate('/players')}
+              >
+                Volver a la lista de jugadores
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-6">
+      {/* Cabecera del jugador */}
+      <PlayerDetailHeader player={player} />
+      
+      {/* Pestañas de información */}
+      <Tab.Group>
+        <Tab.List className="flex space-x-1 rounded-xl bg-gray-100 p-1">
+          <Tab
+            className={({ selected }) =>
+              classNames(
+                'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
+                'focus:outline-none focus:ring-0',
+                selected
+                  ? 'bg-white shadow text-primary-700'
+                  : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'
+              )
+            }
+          >
+            Información del Sistema
+          </Tab>
+          <Tab
+            className={({ selected }) =>
+              classNames(
+                'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
+                'focus:outline-none focus:ring-0',
+                selected
+                  ? 'bg-white shadow text-primary-700'
+                  : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'
+              )
+            }
+          >
+            Dispositivos
+          </Tab>
+          <Tab
+            className={({ selected }) =>
+              classNames(
+                'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
+                'focus:outline-none focus:ring-0',
+                selected
+                  ? 'bg-white shadow text-primary-700'
+                  : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'
+              )
+            }
+          >
+            Procesos
+          </Tab>
+          <Tab
+            className={({ selected }) =>
+              classNames(
+                'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
+                'focus:outline-none focus:ring-0',
+                selected
+                  ? 'bg-white shadow text-primary-700'
+                  : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'
+              )
+            }
+          >
+            Red
+          </Tab>
+          <Tab
+            className={({ selected }) =>
+              classNames(
+                'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
+                'focus:outline-none focus:ring-0',
+                selected
+                  ? 'bg-white shadow text-primary-700'
+                  : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'
+              )
+            }
+          >
+            Capturas
+          </Tab>
+        </Tab.List>
+        <Tab.Panels className="mt-2">
+          <Tab.Panel className="rounded-xl bg-white p-3">
+            <SystemInfoPanel systemInfo={systemInfo} />
+          </Tab.Panel>
+          <Tab.Panel className="rounded-xl bg-white p-3">
+            <DeviceList devices={devices} isEmbedded />
+          </Tab.Panel>
+          <Tab.Panel className="rounded-xl bg-white p-3">
+            <ProcessList processes={processData} />
+          </Tab.Panel>
+          <Tab.Panel className="rounded-xl bg-white p-3">
+            <NetworkConnections connections={networkData} />
+          </Tab.Panel>
+          <Tab.Panel className="rounded-xl bg-white p-3">
+            <ScreenshotGallery 
+              screenshots={screenshots} 
+              playerId={player._id} 
+              isEmbedded 
+            />
+          </Tab.Panel>
+        </Tab.Panels>
+      </Tab.Group>
+    </div>
+  );
 };
 
 export default PlayerDetail;
