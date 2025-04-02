@@ -31,7 +31,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/players', require('./routes/players'));
 app.use('/api/devices', require('./routes/devices'));
 app.use('/api/screenshots', require('./routes/screenshots'));
-app.use('/api/monitor', require('./routes/monitor'));
+app.use('/api/monitor', require('./routes/monitor')); // Asegúrate de que esta ruta esté correcta
 app.use('/api/tournaments', require('./routes/tournaments'));
 app.use('/api/alerts', require('./routes/alerts'));
 
@@ -42,8 +42,11 @@ app.use((req, res) => {
 
 // Middleware de manejo de errores simplificado
 app.use((err, req, res, next) => {
-  console.error('Error:', err.message);
-  res.status(500).json({ message: 'Error del servidor' });
+  console.error('Error:', err);
+  res.status(500).json({ 
+    message: 'Error del servidor',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+  });
 });
 
 // Iniciar servidor antes de conectar a la base de datos
