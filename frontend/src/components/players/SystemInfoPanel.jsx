@@ -1,109 +1,151 @@
 // frontend/src/components/players/SystemInfoPanel.jsx
+import React from 'react';
 import { 
   CpuChipIcon, 
-  DeviceTabletIcon, 
   ComputerDesktopIcon, 
-  LanguageIcon,
   ClockIcon,
-  ServerIcon
+  ServerIcon,
+  DeviceTabletIcon
 } from '@heroicons/react/24/outline';
 
-const SystemInfoPanel = ({ systemInfo = {} }) => {
-  // Valores por defecto para prevenir errores
-  const {
-    windowsVersion = 'No disponible',
-    directXVersion = 'No disponible',
-    gpuDriverVersion = 'No disponible',
-    screenResolution = 'No disponible',
-    windowsUsername = 'No disponible',
-    computerName = 'No disponible',
-    firmwareType = 'No disponible',
-    timeZone = 'No disponible',
-    windowsInstallDate = 'No disponible',
-    lastBootTime = 'No disponible',
-    frameworkVersion = 'No disponible',
-    languageSettings = 'No disponible'
-  } = systemInfo;
+const SystemInfoPanel = ({ player = {} }) => {
+  // Extraer información del sistema
+  const systemInfo = player.systemInfo || {};
+  const hardwareInfo = player.hardwareInfo || {};
 
-  // Información adicional de hardware si está disponible
-  const hardwareInfo = systemInfo.hardwareInfo || {};
-  const {
-    cpu = 'No disponible',
-    gpu = 'No disponible',
-    ram = 'No disponible',
-    motherboard = 'No disponible',
-    storage = 'No disponible',
-    networkAdapters = 'No disponible',
-    biosVersion = 'No disponible'
-  } = hardwareInfo;
+  // Función para formatear valores nulos o undefined
+  const formatValue = (value, fallback = 'No disponible') => {
+    return value && value !== 'N/A' ? value : fallback;
+  };
 
-  // Componente para renderizar secciones de información
-  const InfoSection = ({ icon: Icon, title, items }) => (
-    <div className="card">
-      <div className="card-header flex items-center">
-        <Icon className="mr-2 h-5 w-5 text-gray-400" />
-        <h3 className="text-lg font-medium text-gray-900">{title}</h3>
-      </div>
-      <div className="card-body">
-        <dl className="divide-y divide-gray-200">
-          {items.map((item, index) => (
-            item.value && (
+  // Sección de información reutilizable
+  const InfoSection = ({ title, icon: Icon, items }) => {
+    // Filtrar items que tengan valor
+    const filteredItems = items.filter(item => 
+      item.value && item.value !== 'No disponible'
+    );
+
+    if (filteredItems.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="card mb-4">
+        <div className="card-header flex items-center">
+          <Icon className="mr-2 h-5 w-5 text-gray-400" />
+          <h3 className="text-lg font-medium text-gray-900">{title}</h3>
+        </div>
+        <div className="card-body">
+          <dl className="divide-y divide-gray-200">
+            {filteredItems.map((item, index) => (
               <div key={index} className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
                 <dt className="text-sm font-medium text-gray-500">{item.label}</dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
                   {item.value}
                 </dd>
               </div>
-            )
-          ))}
-        </dl>
+            ))}
+          </dl>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-6">
       {/* Información del Sistema Operativo */}
       <InfoSection
-        icon={ComputerDesktopIcon}
         title="Sistema Operativo"
+        icon={ComputerDesktopIcon}
         items={[
-          { label: 'Versión de Windows', value: windowsVersion },
-          { label: 'Versión de DirectX', value: directXVersion },
-          { label: 'Versión de Framework', value: frameworkVersion },
-          { label: 'Resolución de Pantalla', value: screenResolution },
-          { label: 'Usuario de Windows', value: windowsUsername },
-          { label: 'Nombre del Equipo', value: computerName },
-          { label: 'Tipo de Firmware', value: firmwareType },
-          { label: 'Zona Horaria', value: timeZone },
-          { label: 'Idioma', value: languageSettings },
-          { label: 'Fecha de Instalación', value: windowsInstallDate },
+          { 
+            label: 'Versión de Windows', 
+            value: formatValue(systemInfo.windowsVersion) 
+          },
+          { 
+            label: 'Versión de DirectX', 
+            value: formatValue(systemInfo.directXVersion) 
+          },
+          { 
+            label: 'Versión de Framework', 
+            value: formatValue(systemInfo.frameworkVersion) 
+          },
+          { 
+            label: 'Resolución de Pantalla', 
+            value: formatValue(systemInfo.screenResolution) 
+          },
+          { 
+            label: 'Usuario de Windows', 
+            value: formatValue(systemInfo.windowsUsername) 
+          },
+          { 
+            label: 'Nombre del Equipo', 
+            value: formatValue(systemInfo.computerName) 
+          },
+          { 
+            label: 'Tipo de Firmware', 
+            value: formatValue(systemInfo.firmwareType) 
+          },
+          { 
+            label: 'Zona Horaria', 
+            value: formatValue(systemInfo.timeZone) 
+          },
+          { 
+            label: 'Fecha de Instalación', 
+            value: formatValue(systemInfo.windowsInstallDate) 
+          }
         ]}
       />
 
       {/* Información de Hardware */}
       <InfoSection
-        icon={CpuChipIcon}
         title="Hardware"
+        icon={CpuChipIcon}
         items={[
-          { label: 'Procesador', value: cpu },
-          { label: 'Tarjeta Gráfica', value: gpu },
-          { label: 'Memoria RAM', value: ram },
-          { label: 'Placa Madre', value: motherboard },
-          { label: 'Almacenamiento', value: storage },
-          { label: 'Adaptadores de Red', value: networkAdapters },
-          { label: 'Versión de BIOS', value: biosVersion },
-          { label: 'Version de Driver GPU', value: gpuDriverVersion },
+          { 
+            label: 'Procesador', 
+            value: formatValue(hardwareInfo.cpu) 
+          },
+          { 
+            label: 'Tarjeta Gráfica', 
+            value: formatValue(hardwareInfo.gpu) 
+          },
+          { 
+            label: 'Memoria RAM', 
+            value: formatValue(hardwareInfo.ram) 
+          },
+          { 
+            label: 'Placa Madre', 
+            value: formatValue(hardwareInfo.motherboard) 
+          },
+          { 
+            label: 'Almacenamiento', 
+            value: formatValue(hardwareInfo.storage) 
+          },
+          { 
+            label: 'Adaptadores de Red', 
+            value: formatValue(hardwareInfo.networkAdapters) 
+          },
+          { 
+            label: 'Versión de BIOS', 
+            value: formatValue(hardwareInfo.biosVersion) 
+          }
         ]}
       />
 
-      {/* Información de Tiempo y Arranque */}
+      {/* Información de Tiempo de Sistema */}
       <InfoSection
-        icon={ClockIcon}
         title="Tiempo de Sistema"
+        icon={ClockIcon}
         items={[
-          { label: 'Último Arranque', value: lastBootTime },
-          { label: 'Zona Horaria', value: timeZone },
+          { 
+            label: 'Último Arranque', 
+            value: formatValue(systemInfo.lastBootTime) 
+          },
+          { 
+            label: 'Zona Horaria', 
+            value: formatValue(systemInfo.timeZone) 
+          }
         ]}
       />
     </div>
