@@ -11,7 +11,7 @@ export const SocketProvider = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
   
   // URL de conexión del socket - usa la URL base del backend, no la del frontend
-  const SOCKET_URL = 'https://anti5-0.onrender.com';
+  const SOCKET_URL = 'https://antishit-server2-0.onrender.com';
   
   useEffect(() => {
     if (!isAuthenticated || !user) {
