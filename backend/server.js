@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
-const path = require('path');
+const path = require('path'); // Asegúrate de que path esté importado
 const { connectDB } = require('./config/db');
 const socketSetup = require('./utils/socket');
 const { setupDisconnectionCheck } = require('./controllers/monitorController');
@@ -37,25 +37,21 @@ app.use('/api/tournaments', require('./routes/tournaments'));
 app.use('/api/alerts', require('./routes/alerts'));
 
 // Servir archivos estáticos del frontend
-app.use(express.static(path.join(__dirname, 'frontend/dist')));
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 // Ruta catch-all para redirigir todas las solicitudes no API al frontend
 app.get('*', (req, res, next) => {
   // Excluir peticiones a la API
   if (!req.path.startsWith('/api/')) {
-    res.sendFile(path.join(__dirname, 'frontend/dist', 'index.html'));
+    res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
   } else {
     next();
   }
 });
 
-// Middleware para rutas no encontradas (solo para rutas API)
-app.use((req, res) => {
-  if (req.path.startsWith('/api/')) {
-    res.status(404).json({ message: 'Ruta API no encontrada' });
-  } else {
-    res.sendFile(path.join(__dirname, 'frontend/dist', 'index.html'));
-  }
+// Middleware para rutas API no encontradas
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ message: 'Ruta API no encontrada' });
 });
 
 // Middleware de manejo de errores simplificado
