@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../services/api';
 import {
   UsersIcon,
   DeviceTabletIcon,
@@ -33,19 +33,19 @@ const Dashboard = () => {
         setIsLoading(true);
         
         // Obtener estadísticas
-        const statsResponse = await axios.get('/api/monitor/stats');
+        const statsResponse = await api.get('/monitor/stats');
         setStats(statsResponse.data);
         
         // Obtener jugadores activos
-        const playersResponse = await axios.get('/api/players');
+        const playersResponse = await api.get('/players');
         setPlayers(playersResponse.data);
         
         // Obtener alertas recientes
-        const alertsResponse = await axios.get('/api/alerts?limit=5');
+        const alertsResponse = await api.get('/alerts?limit=5');
         setRecentAlerts(alertsResponse.data);
         
         // Obtener dispositivos sospechosos
-        const devicesResponse = await axios.get('/api/devices/suspicious');
+        const devicesResponse = await api.get('/devices/suspicious');
         setSuspiciousDevices(devicesResponse.data);
         
         setError(null);
