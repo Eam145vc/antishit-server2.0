@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import {
   UsersIcon,
@@ -9,20 +8,18 @@ import {
   BellAlertIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
-import { Doughnut, Bar } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { Doughnut } from 'react-chartjs-2';
 import PlayerStatusTable from './PlayerStatusTable';
-import GlobalStatsCard from './GlobalStatsCard';
-import RecentAlertsList from './RecentAlertsList';
+import PlayerDetailsHoverCard from './PlayerDetailsHoverCard';
 
 // Registrar componentes de Chart.js
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
+ChartJS.register(ArcElement, Tooltip, Legend);
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [players, setPlayers] = useState([]);
-  const [recentAlerts, setRecentAlerts] = useState([]);
-  const [channelStats, setChannelStats] = useState([]);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -35,39 +32,9 @@ const Dashboard = () => {
         const statsResponse = await api.get('/monitor/stats');
         setStats(statsResponse.data);
         
-        // Obtener jugadores por canal
+        // Obtener jugadores
         const playersResponse = await api.get('/players');
         setPlayers(playersResponse.data);
-        
-        // Calcular estadísticas por canal
-        const channelStatsMap = {};
-        playersResponse.data.forEach(player => {
-          const channelId = player.currentChannelId || 0;
-          if (!channelStatsMap[channelId]) {
-            channelStatsMap[channelId] = {
-              total: 0,
-              online: 0,
-              playing: 0
-            };
-          }
-          channelStatsMap[channelId].total++;
-          if (player.isOnline) channelStatsMap[channelId].online++;
-          if (player.isGameRunning) channelStatsMap[channelId].playing++;
-        });
-        
-        // Convertir a array para gráficos
-        const channelStatsArray = Object.entries(channelStatsMap)
-          .map(([channelId, stats]) => ({
-            channelId: parseInt(channelId),
-            ...stats
-          }))
-          .sort((a, b) => a.channelId - b.channelId);
-        
-        setChannelStats(channelStatsArray);
-        
-        // Obtener alertas recientes
-        const alertsResponse = await api.get('/alerts?limit=10');
-        setRecentAlerts(alertsResponse.data);
         
         setError(null);
       } catch (err) {
@@ -108,29 +75,7 @@ const Dashboard = () => {
     ],
   };
   
-  // Datos para el gráfico de canales
-  const channelChartData = {
-    labels: channelStats.map(c => `Canal ${c.channelId}`),
-    datasets: [
-      {
-        label: 'Jugadores totales',
-        data: channelStats.map(c => c.total),
-        backgroundColor: '#3B82F6', // Color primario
-      },
-      {
-        label: 'Jugadores en línea',
-        data: channelStats.map(c => c.online),
-        backgroundColor: '#10B981', // Color de éxito
-      },
-      {
-        label: 'Jugando',
-        data: channelStats.map(c => c.playing),
-        backgroundColor: '#EF4444', // Color de peligro
-      }
-    ]
-  };
-  
-  // Configuración para gráficos
+  // Configuración para el gráfico
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -145,18 +90,6 @@ const Dashboard = () => {
       }
     },
     cutout: '70%'
-  };
-  
-  const channelBarOptions = {
-    responsive: true,
-    scales: {
-      x: {
-        stacked: true,
-      },
-      y: {
-        stacked: true
-      }
-    }
   };
   
   if (isLoading) {
@@ -202,41 +135,76 @@ const Dashboard = () => {
       
       {/* Estadísticas globales */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <GlobalStatsCard
-          title="Total de Jugadores"
-          value={stats?.players.total || 0}
-          icon={UsersIcon}
-          color="primary"
-        />
-        <GlobalStatsCard
-          title="Jugadores Activos"
-          value={stats?.players.online || 0}
-          icon={ShieldCheckIcon}
-          color="success"
-        />
-        <GlobalStatsCard
-          title="Jugando Ahora"
-          value={stats?.players.playing || 0}
-          icon={DeviceTabletIcon}
-          color="warning"
-        />
-        <GlobalStatsCard
-          title="Dispositivos"
-          value={stats?.devices.total || 0}
-          valueDetail={`${stats?.devices.byTrustLevel.suspicious || 0} sospechosos`}
-          icon={DeviceTabletIcon}
-          color={stats?.devices.byTrustLevel.suspicious > 0 ? "danger" : "primary"}
-        />
-        <GlobalStatsCard
-          title="Capturas"
-          value={stats?.screenshots.last24h || 0}
-          valueDetail="últimas 24h"
-          icon={CameraIcon}
-          color="primary"
-        />
+        <div className="card">
+          <div className="flex items-center p-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary-100">
+              <UsersIcon className="h-6 w-6 text-primary-600" />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-base font-medium text-gray-900">Jugadores Activos</h3>
+              <p className="text-2xl font-semibold text-gray-900">
+                {stats?.players.online || 0} <span className="text-sm text-gray-500">de {stats?.players.total || 0}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center p-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-warning-100">
+              <ShieldCheckIcon className="h-6 w-6 text-warning-600" />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-base font-medium text-gray-900">Jugando Ahora</h3>
+              <p className="text-2xl font-semibold text-gray-900">
+                {stats?.players.playing || 0} <span className="text-sm text-gray-500">de {stats?.players.online || 0}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center p-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary-100">
+              <DeviceTabletIcon className="h-6 w-6 text-primary-600" />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-base font-medium text-gray-900">Dispositivos</h3>
+              <p className="text-2xl font-semibold text-gray-900">
+                {stats?.devices.total || 0} <span className="text-sm text-danger-500">{stats?.devices.byTrustLevel.suspicious || 0} sospechosos</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center p-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary-100">
+              <CameraIcon className="h-6 w-6 text-primary-600" />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-base font-medium text-gray-900">Capturas</h3>
+              <p className="text-2xl font-semibold text-gray-900">
+                {stats?.screenshots.last24h || 0} <span className="text-sm text-gray-500">últimas 24h</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center p-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary-100">
+              <BellAlertIcon className="h-6 w-6 text-primary-600" />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-base font-medium text-gray-900">Alertas</h3>
+              <p className="text-2xl font-semibold text-gray-900">0</p>
+            </div>
+          </div>
+        </div>
       </div>
       
-      {/* Contenido principal del dashboard */}
+      {/* Contenido principal */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Panel izquierdo */}
         <div className="space-y-6">
@@ -279,59 +247,31 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-          
-          {/* Distribución por canal */}
-          <div className="card">
-            <div className="card-header">
-              <h3 className="text-lg font-medium text-gray-900">
-                Estadísticas por Canal
-              </h3>
-            </div>
-            <div className="card-body">
-              <div className="h-64">
-                <Bar data={channelChartData} options={channelBarOptions} />
-              </div>
-            </div>
-          </div>
         </div>
         
         {/* Panel derecho */}
         <div className="space-y-6">
           {/* Jugadores activos */}
           <div className="card">
-            <div className="card-header flex items-center justify-between">
+            <div className="card-header">
               <h3 className="text-lg font-medium text-gray-900">
                 Jugadores Activos
               </h3>
-              <Link
-                to="/players"
-                className="text-sm font-medium text-primary-600 hover:text-primary-500"
-              >
-                Ver todos
-              </Link>
             </div>
             <div className="card-body p-0">
-              <PlayerStatusTable players={players.slice(0, 5)} />
+              <PlayerStatusTable 
+                players={players} 
+                onPlayerSelect={setSelectedPlayer} 
+              />
             </div>
           </div>
           
-          {/* Alertas recientes */}
-          <div className="card">
-            <div className="card-header flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">
-                Alertas Recientes
-              </h3>
-              <Link
-                to="/alerts"
-                className="text-sm font-medium text-primary-600 hover:text-primary-500"
-              >
-                Ver todas
-              </Link>
+          {/* Detalles de jugador al pasar el ratón */}
+          {selectedPlayer && (
+            <div className="card">
+              <PlayerDetailsHoverCard player={selectedPlayer} />
             </div>
-            <div className="card-body">
-              <RecentAlertsList alerts={recentAlerts} />
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
