@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { UserIcon, UsersIcon, DeviceTabletIcon, BellAlertIcon } from '@heroicons/react/24/outline';
 import StatsCard from './StatsCard';
+import api from '../../services/api';
 
 const Dashboard = () => {
   const [players, setPlayers] = useState([]);
@@ -20,54 +21,65 @@ const Dashboard = () => {
       try {
         setIsLoading(true);
         
-        // Obtener jugadores activos - primero obtenemos todos los jugadores
-        const playersResponse = await axios.get('/api/players');
+        // Usar la configuración de API correcta
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
+        console.log('Usando URL de API:', apiUrl);
         
-        if (playersResponse.data) {
-          // Filtrar jugadores que están realmente online
-          const activePlayers = playersResponse.data.filter(player => {
-            // Verificar si el jugador está realmente online
-            const lastSeenDate = new Date(player.lastSeen);
-            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-            return player.isOnline && lastSeenDate > fiveMinutesAgo;
-          });
-          
-          setPlayers(activePlayers);
-          
-          // Construir estadísticas manuales si la API de stats no está disponible
-          setStats({
-            players: {
-              total: playersResponse.data.length,
-              online: activePlayers.length,
-              playing: activePlayers.filter(p => p.isGameRunning).length
-            },
-            devices: { 
-              total: 0, 
-              byTrustLevel: { suspicious: 0 },
-              byType: {}
-            },
-            alerts: {
-              total: 0,
-              high: 0
-            },
-            screenshots: { 
-              total: 0, 
-              last24h: 0 
+        // Obtener jugadores activos usando la API directamente
+        try {
+          const playersResponse = await axios.get(`${apiUrl}/players`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
           });
+          
+          console.log('Respuesta de jugadores:', playersResponse.data);
+          
+          if (playersResponse.data) {
+            // Filtrar jugadores que están realmente online
+            const activePlayers = playersResponse.data.filter(player => {
+              // Verificar si el jugador está realmente online
+              const lastSeenDate = new Date(player.lastSeen);
+              const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+              return player.isOnline && lastSeenDate > fiveMinutesAgo;
+            });
+            
+            setPlayers(activePlayers);
+            
+            // Construir estadísticas manuales a partir de los datos de jugadores
+            setStats(prevStats => ({
+              ...prevStats,
+              players: {
+                total: playersResponse.data.length,
+                online: activePlayers.length,
+                playing: activePlayers.filter(p => p.isGameRunning).length
+              }
+            }));
+          }
+        } catch (playersError) {
+          console.error('Error al cargar jugadores:', playersError);
+          setError('Error al cargar jugadores');
         }
         
         // Intentar obtener estadísticas detalladas
         try {
-          const statsResponse = await axios.get('/api/monitor/stats');
+          const statsResponse = await axios.get(`${apiUrl}/monitor/stats`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          });
+          
           if (statsResponse.data) {
-            setStats(statsResponse.data);
+            console.log('Respuesta de estadísticas:', statsResponse.data);
+            setStats(prevStats => ({
+              ...prevStats,
+              ...statsResponse.data
+            }));
           }
         } catch (statsError) {
           console.warn('No se pudieron cargar estadísticas detalladas, usando básicas', statsError);
         }
         
-        setError(null);
       } catch (err) {
         console.error('Error al cargar datos del dashboard:', err);
         setError('Error al cargar datos del dashboard');
@@ -83,6 +95,11 @@ const Dashboard = () => {
     
     return () => clearInterval(intervalId);
   }, []);
+
+  // Para depuración - mostrar jugadores conectados en consola
+  useEffect(() => {
+    console.log('Jugadores actuales:', players);
+  }, [players]);
 
   return (
     <div className="space-y-6">
@@ -114,7 +131,7 @@ const Dashboard = () => {
         <StatsCard
           title="Dispositivos"
           value={stats.devices.total}
-          valueDetail={`${stats.devices.byTrustLevel.suspicious || 0} sospechosos`}
+          valueDetail={`${stats.devices.byTrustLevel?.suspicious || 0} sospechosos`}
           icon={DeviceTabletIcon}
           color="warning"
           href="/devices"
@@ -142,7 +159,7 @@ const Dashboard = () => {
             <p className="mt-2 text-gray-600">Cargando jugadores...</p>
           </div>
         ) : error ? (
-          <div className="p-6 text-center text-danger-600">
+          <div className="p-6 text-center text-red-600">
             {error}
           </div>
         ) : players.length === 0 ? (
