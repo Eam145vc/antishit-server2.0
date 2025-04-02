@@ -1,47 +1,12 @@
 const User = require('../models/User');
 const { generateToken } = require('../config/auth');
 
-// Validaciones adicionales en los controladores
-const loginUser = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // Validaciones más robustas
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email y contraseña son requeridos' });
-    }
-
-    // Verificar si el usuario existe
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(401).json({ message: 'Usuario no encontrado' });
-    }
-
-    const isMatch = await user.matchPassword(password);
-
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Credenciales inválidas' });
-    }
-
-    res.json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      token: generateToken(user._id)
-    });
-  } catch (error) {
-    console.error('Error en login:', error);
-    res.status(500).json({ message: error.message });
-  }
-};
-
+// Registro de usuario con lógica para primer usuario
 const registerUser = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
-    // Validaciones más robustas
+    // Validaciones básicas
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Todos los campos son requeridos' });
     }
@@ -50,15 +15,19 @@ const registerUser = async (req, res) => {
     const userExists = await User.findOne({ email });
 
     if (userExists) {
-      return res.status(400).json({ message: 'Usuario ya existe' });
+      return res.status(400).json({ message: 'El correo electrónico ya está registrado' });
     }
+
+    // Verificar si es el primer usuario (se convierte en admin)
+    const userCount = await User.countDocuments();
+    const userRole = userCount === 0 ? 'admin' : (role || 'judge');
 
     // Crear nuevo usuario
     const user = await User.create({
       name,
       email,
       password,
-      role: role || 'judge'
+      role: userRole
     });
 
     if (user) {
@@ -78,18 +47,51 @@ const registerUser = async (req, res) => {
   }
 };
 
-// Resto de los controladores permanecen igual
+// Login de usuario
+const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validaciones
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email y contraseña son requeridos' });
+    }
+
+    // Verificar si el usuario existe
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({ message: 'Credenciales inválidas' });
+    }
+
+    // Verificar contraseña
+    const isMatch = await user.matchPassword(password);
+
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Credenciales inválidas' });
+    }
+
+    // Generar token
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      token: generateToken(user._id)
+    });
+  } catch (error) {
+    console.error('Error en login:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Obtener perfil de usuario
 const getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select('-password');
 
     if (user) {
-      res.json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      });
+      res.json(user);
     } else {
       res.status(404).json({ message: 'Usuario no encontrado' });
     }
@@ -98,7 +100,7 @@ const getUserProfile = async (req, res) => {
   }
 };
 
-// Implementación de las funciones faltantes
+// Actualizar perfil de usuario
 const updateUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
@@ -107,11 +109,10 @@ const updateUserProfile = async (req, res) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    // Actualizar campos si se proporcionan
+    // Actualizar campos
     user.name = req.body.name || user.name;
-    user.email = req.body.email || user.email;
     
-    // Solo actualizar contraseña si se proporciona una nueva
+    // Solo actualizar contraseña si se proporciona
     if (req.body.password) {
       user.password = req.body.password;
     }
@@ -122,8 +123,7 @@ const updateUserProfile = async (req, res) => {
       _id: updatedUser._id,
       name: updatedUser.name,
       email: updatedUser.email,
-      role: updatedUser.role,
-      token: generateToken(updatedUser._id)
+      role: updatedUser.role
     });
   } catch (error) {
     console.error('Error actualizando perfil:', error);
@@ -131,6 +131,7 @@ const updateUserProfile = async (req, res) => {
   }
 };
 
+// Cambiar contraseña
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -163,9 +164,9 @@ const changePassword = async (req, res) => {
   }
 };
 
+// Obtener usuarios (solo admin)
 const getUsers = async (req, res) => {
   try {
-    // Solo administradores pueden ver la lista de usuarios
     const users = await User.find({}).select('-password');
     res.json(users);
   } catch (error) {
@@ -174,6 +175,7 @@ const getUsers = async (req, res) => {
   }
 };
 
+// Eliminar usuario (solo admin)
 const deleteUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -196,8 +198,8 @@ const deleteUser = async (req, res) => {
 };
 
 module.exports = {
-  loginUser,
   registerUser,
+  loginUser,
   getUserProfile,
   updateUserProfile,
   changePassword,
