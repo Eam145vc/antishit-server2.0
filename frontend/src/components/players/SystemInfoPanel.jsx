@@ -1,5 +1,5 @@
 // frontend/src/components/players/SystemInfoPanel.jsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   CpuChipIcon, 
   ComputerDesktopIcon, 
@@ -9,6 +9,23 @@ import {
 } from '@heroicons/react/24/outline';
 
 const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
+  // Estado para depuración (verificar datos recibidos)
+  const [debug, setDebug] = useState({
+    systemInfoEmpty: Object.keys(systemInfo || {}).length === 0,
+    hardwareInfoEmpty: Object.keys(hardwareInfo || {}).length === 0
+  });
+
+  // Actualizar estado de depuración cuando cambien las props
+  useEffect(() => {
+    console.log("SystemInfoPanel recibió systemInfo:", systemInfo);
+    console.log("SystemInfoPanel recibió hardwareInfo:", hardwareInfo);
+    
+    setDebug({
+      systemInfoEmpty: Object.keys(systemInfo || {}).length === 0,
+      hardwareInfoEmpty: Object.keys(hardwareInfo || {}).length === 0
+    });
+  }, [systemInfo, hardwareInfo]);
+
   // Función para formatear valores nulos o undefined
   const formatValue = (value, fallback = 'No disponible') => {
     return value && value !== 'N/A' ? value : fallback;
@@ -16,7 +33,7 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
 
   // Sección de información reutilizable
   const InfoSection = ({ title, icon: Icon, items }) => {
-    // Filtrar items que tengan valor
+    // Filtrar items que tengan valor significativo
     const filteredItems = items.filter(item => 
       item.value && item.value !== 'No disponible'
     );
@@ -47,6 +64,15 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
     );
   };
 
+  // Si no hay datos, mostrar mensaje indicativo
+  if (debug.systemInfoEmpty && debug.hardwareInfoEmpty) {
+    return (
+      <div className="bg-gray-50 p-6 text-center rounded-md">
+        <p className="text-gray-500">No hay información del sistema disponible</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Información del Sistema Operativo */}
@@ -56,39 +82,39 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
         items={[
           { 
             label: 'Versión de Windows', 
-            value: formatValue(systemInfo.windowsVersion) 
+            value: formatValue(systemInfo?.windowsVersion) 
           },
           { 
             label: 'Versión de DirectX', 
-            value: formatValue(systemInfo.directXVersion) 
+            value: formatValue(systemInfo?.directXVersion) 
           },
           { 
             label: 'Versión de Framework', 
-            value: formatValue(systemInfo.frameworkVersion) 
+            value: formatValue(systemInfo?.frameworkVersion) 
           },
           { 
             label: 'Resolución de Pantalla', 
-            value: formatValue(systemInfo.screenResolution) 
+            value: formatValue(systemInfo?.screenResolution) 
           },
           { 
             label: 'Usuario de Windows', 
-            value: formatValue(systemInfo.windowsUsername) 
+            value: formatValue(systemInfo?.windowsUsername) 
           },
           { 
             label: 'Nombre del Equipo', 
-            value: formatValue(systemInfo.computerName) 
+            value: formatValue(systemInfo?.computerName) 
           },
           { 
             label: 'Tipo de Firmware', 
-            value: formatValue(systemInfo.firmwareType) 
+            value: formatValue(systemInfo?.firmwareType) 
           },
           { 
             label: 'Zona Horaria', 
-            value: formatValue(systemInfo.timeZone) 
+            value: formatValue(systemInfo?.timeZone) 
           },
           { 
             label: 'Fecha de Instalación', 
-            value: formatValue(systemInfo.windowsInstallDate) 
+            value: formatValue(systemInfo?.windowsInstallDate) 
           }
         ]}
       />
@@ -100,31 +126,31 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
         items={[
           { 
             label: 'Procesador', 
-            value: formatValue(hardwareInfo.cpu) 
+            value: formatValue(hardwareInfo?.cpu) 
           },
           { 
             label: 'Tarjeta Gráfica', 
-            value: formatValue(hardwareInfo.gpu) 
+            value: formatValue(hardwareInfo?.gpu) 
           },
           { 
             label: 'Memoria RAM', 
-            value: formatValue(hardwareInfo.ram) 
+            value: formatValue(hardwareInfo?.ram) 
           },
           { 
             label: 'Placa Madre', 
-            value: formatValue(hardwareInfo.motherboard) 
+            value: formatValue(hardwareInfo?.motherboard) 
           },
           { 
             label: 'Almacenamiento', 
-            value: formatValue(hardwareInfo.storage) 
+            value: formatValue(hardwareInfo?.storage) 
           },
           { 
             label: 'Adaptadores de Red', 
-            value: formatValue(hardwareInfo.networkAdapters) 
+            value: formatValue(hardwareInfo?.networkAdapters) 
           },
           { 
             label: 'Versión de BIOS', 
-            value: formatValue(hardwareInfo.biosVersion) 
+            value: formatValue(hardwareInfo?.biosVersion) 
           }
         ]}
       />
@@ -136,11 +162,11 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
         items={[
           { 
             label: 'Último Arranque', 
-            value: formatValue(systemInfo.lastBootTime) 
+            value: formatValue(systemInfo?.lastBootTime) 
           },
           { 
             label: 'Zona Horaria', 
-            value: formatValue(systemInfo.timeZone) 
+            value: formatValue(systemInfo?.timeZone) 
           }
         ]}
       />
