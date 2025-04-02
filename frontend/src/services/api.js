@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://anti5-0.onrender.c
 
 console.log('[DEBUG] API Base URL:', API_BASE_URL);
 
-// Create axios instance with base configuration
+// Crear instancia de axios con la configuración base
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -17,22 +17,25 @@ const api = axios.create({
 });
 
 // Interceptor para agregar token de autorización
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  console.log('[DEBUG] Request config:', {
-    url: config.url,
-    method: config.method,
-    token: token ? 'Token present' : 'No token'
-  });
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    console.log('[DEBUG] Request config:', {
+      url: config.url,
+      method: config.method,
+      token: token ? 'Token present' : 'No token'
+    });
 
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    console.error('[DEBUG] Request error:', error);
+    return Promise.reject(error);
   }
-  return config;
-}, (error) => {
-  console.error('[DEBUG] Request error:', error);
-  return Promise.reject(error);
-});
+);
 
 // Interceptor de respuesta global
 api.interceptors.response.use(
@@ -46,14 +49,12 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Manejar errores de red
     if (error.message === 'Network Error') {
       console.error('[ERROR] Network Error:', error);
       toast.error('Error de conexión. Verifique su red.');
       return Promise.reject(error);
     }
 
-    // Manejar respuestas de error del servidor
     if (error.response) {
       const { status, data, config } = error.response;
 
@@ -69,9 +70,9 @@ api.interceptors.response.use(
           toast.error(data.message || 'Solicitud inválida');
           break;
         case 401:
-          // Token inválido o expirado
+          // Token inválido o expirado: eliminar token y emitir un evento
           localStorage.removeItem('token');
-          window.location.href = '/login';
+          window.dispatchEvent(new CustomEvent('unauthorized'));
           toast.error('Sesión expirada. Inicie sesión nuevamente.');
           break;
         case 403:
@@ -87,11 +88,9 @@ api.interceptors.response.use(
           toast.error('Ocurrió un error desconocido');
       }
     } else if (error.request) {
-      // La solicitud fue hecha pero no se recibió respuesta
       console.error('[ERROR] No response:', error.request);
       toast.error('No se recibió respuesta del servidor');
     } else {
-      // Algo sucedió al configurar la solicitud
       console.error('[ERROR] Request setup error:', error.message);
       toast.error('Error al configurar la solicitud');
     }
