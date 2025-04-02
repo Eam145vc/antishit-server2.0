@@ -2,7 +2,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 // Get API URL from environment, with explicit fallback
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://anti5-0.onrender.com/api';
 
 console.log('[DEBUG] API Base URL:', API_BASE_URL);
 
