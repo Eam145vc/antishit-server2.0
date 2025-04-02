@@ -1,299 +1,162 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import axios from 'axios';
-import { Tab } from '@headlessui/react';
-import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
-import PlayerDetailHeader from '../monitor/PlayerDetailHeader';
-import DeviceList from '../devices/DeviceList';
-import ScreenshotGallery from '../screenshots/ScreenshotGallery';
-import SystemInfoPanel from './SystemInfoPanel';
-import ProcessList from './ProcessList';
-import NetworkConnections from './NetworkConnections';
-import toast from 'react-hot-toast';
+import { formatDistanceToNow } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { 
+  CameraIcon, 
+  ExclamationTriangleIcon,
+  ClockIcon,
+  ComputerDesktopIcon
+} from '@heroicons/react/24/outline';
 import { useSocket } from '../../context/SocketContext';
+import toast from 'react-hot-toast';
 
-function classNames(...classes) {
-  return classes.filter(Boolean).join(' ');
-}
-
-const PlayerDetail = () => {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const { socket } = useSocket();
+const PlayerDetailHeader = ({ player }) => {
+  const [isReporting, setIsReporting] = useState(false);
+  const { requestScreenshot } = useSocket();
   
-  const [player, setPlayer] = useState(null);
-  const [devices, setDevices] = useState([]);
-  const [screenshots, setScreenshots] = useState([]);
-  const [processData, setProcessData] = useState([]);
-  const [networkData, setNetworkData] = useState([]);
-  const [systemInfo, setSystemInfo] = useState({});
-  const [monitorData, setMonitorData] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // Verificar si el jugador realmente está conectado
+  const lastSeenDate = new Date(player.lastSeen);
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  const isReallyOnline = player.isOnline && lastSeenDate > fiveMinutesAgo;
   
-  // Escuchar actualizaciones en tiempo real de monitoreo
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleMonitorUpdate = (data) => {
-      if (data.activisionId === player?.activisionId) {
-        // Actualizar datos en tiempo real
-        if (data.processes) setProcessData(data.processes);
-        if (data.networkConnections) setNetworkData(data.networkConnections);
-        if (data.systemInfo) {
-          setSystemInfo(prevInfo => ({
-            ...prevInfo,
-            ...data.systemInfo
-          }));
-        }
+  const handleRequestScreenshot = async () => {
+    try {
+      const result = requestScreenshot(player.activisionId, player.currentChannelId);
+      if (result) {
+        toast.success(`Captura solicitada para ${player.activisionId}`);
+      } else {
+        toast.error('No se pudo solicitar la captura');
       }
-    };
-
-    socket.on('monitor-update', handleMonitorUpdate);
-
-    return () => {
-      socket.off('monitor-update', handleMonitorUpdate);
-    };
-  }, [socket, player]);
+    } catch (error) {
+      toast.error('Error al solicitar captura');
+    }
+  };
   
-  useEffect(() => {
-    const fetchPlayerData = async () => {
-      try {
-        setIsLoading(true);
-        
-        const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
-        const token = localStorage.getItem('token');
-        
-        if (!token) {
-          toast.error('Sesión expirada, por favor inicie sesión nuevamente');
-          navigate('/login');
-          return;
-        }
-        
-        const headers = {
-          'Authorization': `Bearer ${token}`
-        };
-        
-        // Obtener información del jugador
-        const playerResponse = await axios.get(`${apiUrl}/players/${id}`, { headers });
-        const playerData = playerResponse.data;
-        setPlayer(playerData);
-        
-        // Establecer información del sistema inicial
-        setSystemInfo(playerData.systemInfo || {});
-        
-        // Obtener dispositivos del jugador
-        const devicesResponse = await axios.get(`${apiUrl}/players/${id}/devices`, { headers });
-        setDevices(devicesResponse.data.all || []);
-        
-        // Obtener capturas de pantalla
-        const screenshotsResponse = await axios.get(`${apiUrl}/screenshots/player/${id}?limit=10`, { headers });
-        setScreenshots(screenshotsResponse.data);
-        
-        // Obtener historial de monitoreo más reciente
-        const historyResponse = await axios.get(`${apiUrl}/players/${id}/history?limit=1`, { headers });
-        
-        if (historyResponse.data && historyResponse.data.length > 0) {
-          const latestMonitorData = historyResponse.data[0];
-          setMonitorData(latestMonitorData);
-          
-          // Establecer datos de procesos y red
-          setProcessData(latestMonitorData.processes || []);
-          setNetworkData(latestMonitorData.networkConnections || []);
-          
-          // Actualizar información del sistema
-          setSystemInfo(prevInfo => ({
-            ...prevInfo,
-            ...latestMonitorData.systemInfo
-          }));
-        }
-        
-        setError(null);
-      } catch (error) {
-        console.error('Error al cargar datos:', error);
-        setError('Error al cargar los datos del jugador');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchPlayerData();
-  }, [id, navigate]);
-  
-  if (isLoading) {
-    return (
-      <div className="flex h-96 items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-600 border-r-transparent"></div>
-          <p className="mt-2 text-gray-600">Cargando información del jugador...</p>
-        </div>
-      </div>
-    );
-  }
-  
-  if (error) {
-    return (
-      <div className="rounded-md bg-danger-50 p-4">
-        <div className="flex">
-          <div className="flex-shrink-0">
-            <ExclamationTriangleIcon 
-              className="h-5 w-5 text-danger-400" 
-              aria-hidden="true" 
-            />
-          </div>
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-danger-800">
-              {error}
-            </h3>
-            <div className="mt-4 flex">
-              <button
-                type="button"
-                className="rounded-md bg-danger-50 px-2 py-1.5 text-sm font-medium text-danger-800 hover:bg-danger-100 mr-3"
-                onClick={() => navigate('/players')}
-              >
-                Volver a jugadores
-              </button>
-              <button
-                type="button"
-                className="rounded-md bg-danger-50 px-2 py-1.5 text-sm font-medium text-danger-800 hover:bg-danger-100"
-                onClick={() => window.location.reload()}
-              >
-                Reintentar
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  
-  if (!player) {
-    return (
-      <div className="rounded-md bg-warning-50 p-4">
-        <div className="flex">
-          <div className="flex-shrink-0">
-            <ExclamationTriangleIcon 
-              className="h-5 w-5 text-warning-400" 
-              aria-hidden="true" 
-            />
-          </div>
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-warning-800">
-              No se encontró información del jugador
-            </h3>
-            <div className="mt-2">
-              <button
-                type="button"
-                className="rounded-md bg-warning-50 px-2 py-1.5 text-sm font-medium text-warning-800 hover:bg-warning-100"
-                onClick={() => navigate('/players')}
-              >
-                Volver a la lista de jugadores
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const toggleSuspicious = async () => {
+    setIsReporting(true);
+    try {
+      await axios.put(`/api/players/${player._id}/suspect`, {
+        suspicious: !player.suspiciousActivity
+      });
+      // Actualizar localmente mientras se recarga
+      player.suspiciousActivity = !player.suspiciousActivity;
+      toast.success('Estado de sospechoso actualizado');
+    } catch (error) {
+      console.error('Error al marcar jugador:', error);
+      toast.error('Error al actualizar estado');
+    } finally {
+      setIsReporting(false);
+    }
+  };
   
   return (
-    <div className="space-y-6">
-      {/* Cabecera del jugador */}
-      <PlayerDetailHeader player={player} />
-      
-      {/* Pestañas de información */}
-      <Tab.Group>
-        <Tab.List className="flex space-x-1 rounded-xl bg-gray-100 p-1">
-          <Tab
-            className={({ selected }) =>
-              classNames(
-                'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
-                'focus:outline-none focus:ring-0',
-                selected
-                  ? 'bg-white shadow text-primary-700'
-                  : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'
-              )
-            }
-          >
-            Información del Sistema
-          </Tab>
-          <Tab
-            className={({ selected }) =>
-              classNames(
-                'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
-                'focus:outline-none focus:ring-0',
-                selected
-                  ? 'bg-white shadow text-primary-700'
-                  : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'
-              )
-            }
-          >
-            Dispositivos
-          </Tab>
-          <Tab
-            className={({ selected }) =>
-              classNames(
-                'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
-                'focus:outline-none focus:ring-0',
-                selected
-                  ? 'bg-white shadow text-primary-700'
-                  : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'
-              )
-            }
-          >
-            Procesos
-          </Tab>
-          <Tab
-            className={({ selected }) =>
-              classNames(
-                'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
-                'focus:outline-none focus:ring-0',
-                selected
-                  ? 'bg-white shadow text-primary-700'
-                  : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'
-              )
-            }
-          >
-            Red
-          </Tab>
-          <Tab
-            className={({ selected }) =>
-              classNames(
-                'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
-                'focus:outline-none focus:ring-0',
-                selected
-                  ? 'bg-white shadow text-primary-700'
-                  : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'
-              )
-            }
-          >
-            Capturas
-          </Tab>
-        </Tab.List>
-        <Tab.Panels className="mt-2">
-          <Tab.Panel className="rounded-xl bg-white p-3">
-            <SystemInfoPanel systemInfo={systemInfo} />
-          </Tab.Panel>
-          <Tab.Panel className="rounded-xl bg-white p-3">
-            <DeviceList devices={devices} isEmbedded />
-          </Tab.Panel>
-          <Tab.Panel className="rounded-xl bg-white p-3">
-            <ProcessList processes={processData} />
-          </Tab.Panel>
-          <Tab.Panel className="rounded-xl bg-white p-3">
-            <NetworkConnections connections={networkData} />
-          </Tab.Panel>
-          <Tab.Panel className="rounded-xl bg-white p-3">
-            <ScreenshotGallery 
-              screenshots={screenshots} 
-              playerId={player._id} 
-              isEmbedded 
-            />
-          </Tab.Panel>
-        </Tab.Panels>
-      </Tab.Group>
+    <div className="card">
+      <div className="card-body p-6">
+        <div className="flex flex-col items-start sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-4 sm:mb-0">
+            <div className="flex items-center">
+              <div className={`h-3 w-3 rounded-full ${isReallyOnline ? 'bg-success-500' : 'bg-gray-300'}`}></div>
+              <h1 className="ml-2 text-2xl font-bold text-gray-900">
+                {player.activisionId}
+              </h1>
+              {player.suspiciousActivity && (
+                <span className="ml-3 inline-flex items-center rounded-full bg-danger-100 px-2.5 py-0.5 text-xs font-medium text-danger-800">
+                  <ExclamationTriangleIcon className="mr-1 h-3 w-3" aria-hidden="true" />
+                  Sospechoso
+                </span>
+              )}
+            </div>
+            {player.nickname && (
+              <p className="mt-1 text-sm text-gray-500">
+                Nickname: {player.nickname}
+              </p>
+            )}
+          </div>
+          
+          <div className="flex space-x-3">
+            <button
+              onClick={handleRequestScreenshot}
+              disabled={!isReallyOnline}
+              className={`rounded-md px-3 py-2 text-sm font-medium ${
+                isReallyOnline
+                  ? 'bg-primary-600 text-white hover:bg-primary-700'
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              <div className="flex items-center">
+                <CameraIcon className="mr-1 h-4 w-4" />
+                Capturar Pantalla
+              </div>
+            </button>
+            
+            <button
+              onClick={toggleSuspicious}
+              disabled={isReporting}
+              className={`rounded-md px-3 py-2 text-sm font-medium ${
+                player.suspiciousActivity
+                  ? 'bg-warning-100 text-warning-800 hover:bg-warning-200'
+                  : 'bg-danger-600 text-white hover:bg-danger-700'
+              }`}
+            >
+              <div className="flex items-center">
+                <ExclamationTriangleIcon className="mr-1 h-4 w-4" />
+                {player.suspiciousActivity ? 'Quitar marca' : 'Marcar sospechoso'}
+              </div>
+            </button>
+          </div>
+        </div>
+        
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="rounded-md bg-gray-50 p-4">
+            <div className="flex items-center">
+              <ComputerDesktopIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+              <span className="ml-2 text-sm font-medium text-gray-500">Estado:</span>
+              <span
+                className={`ml-2 inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
+                  !isReallyOnline
+                    ? 'bg-gray-100 text-gray-800'
+                    : player.isGameRunning
+                    ? 'bg-success-100 text-success-800'
+                    : 'bg-warning-100 text-warning-800'
+                }`}
+              >
+                {!isReallyOnline
+                  ? 'Desconectado'
+                  : player.isGameRunning
+                  ? 'Jugando'
+                  : 'Conectado'}
+              </span>
+            </div>
+          </div>
+          
+          <div className="rounded-md bg-gray-50 p-4">
+            <div className="flex items-center">
+              <ClockIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+              <span className="ml-2 text-sm font-medium text-gray-500">Última actividad:</span>
+              <span className="ml-2 text-sm text-gray-700">
+                {player.lastSeen
+                  ? formatDistanceToNow(new Date(player.lastSeen), {
+                      addSuffix: true,
+                      locale: es
+                    })
+                  : 'Desconocido'}
+              </span>
+            </div>
+          </div>
+          
+          <div className="rounded-md bg-gray-50 p-4">
+            <div className="flex items-center">
+              <span className="text-sm font-medium text-gray-500">Canal actual:</span>
+              <span className="ml-2 text-sm text-gray-700">
+                Canal {player.currentChannelId || 'N/A'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
 
-export default PlayerDetail;
+export default PlayerDetailHeader;
