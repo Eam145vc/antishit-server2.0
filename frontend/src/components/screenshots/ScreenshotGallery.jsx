@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -8,9 +8,11 @@ import {
   ExclamationTriangleIcon, 
   UserGroupIcon 
 } from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
 
 const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded = false }) => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [screenshots, setScreenshots] = useState(propsScreenshots || []);
   const [filteredScreenshots, setFilteredScreenshots] = useState([]);
   const [selectedScreenshot, setSelectedScreenshot] = useState(null);
@@ -22,29 +24,52 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   useEffect(() => {
     if (propsScreenshots) {
       setScreenshots(propsScreenshots);
+      setFilteredScreenshots(propsScreenshots);
       return;
     }
     
     const fetchScreenshots = async () => {
       try {
         setIsLoading(true);
-        const url = playerId || id
-          ? `/api/screenshots/player/${playerId || id}`
-          : '/api/screenshots';
         
-        const response = await axios.get(url);
+        // Usar URL base de la configuración
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+          toast.error('Sesión expirada, por favor inicie sesión nuevamente');
+          navigate('/login');
+          return;
+        }
+        
+        const headers = {
+          'Authorization': `Bearer ${token}`
+        };
+        
+        let url = `${apiUrl}/screenshots`;
+        if (playerId || id) {
+          url = `${apiUrl}/screenshots/player/${playerId || id}`;
+        }
+        
+        console.log('Solicitando capturas de:', url);
+        const response = await axios.get(url, { headers });
+        console.log('Respuesta de capturas:', response.data);
+        
         setScreenshots(response.data);
+        setFilteredScreenshots(response.data);
         setError(null);
       } catch (err) {
+        console.error('Error al cargar capturas de pantalla:', err);
         setError('Error al cargar capturas de pantalla');
-        console.error(err);
+        setScreenshots([]);
+        setFilteredScreenshots([]);
       } finally {
         setIsLoading(false);
       }
     };
     
     fetchScreenshots();
-  }, [propsScreenshots, playerId, id]);
+  }, [propsScreenshots, playerId, id, navigate]);
   
   // Filtrar capturas de pantalla
   useEffect(() => {
@@ -61,13 +86,28 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   // Abrir modal de captura de pantalla
   const openScreenshotModal = async (screenshot) => {
     try {
-      const response = await axios.get(`/api/screenshots/${screenshot._id}/image`);
+      // Usar URL base de la configuración
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        toast.error('Sesión expirada, por favor inicie sesión nuevamente');
+        navigate('/login');
+        return;
+      }
+      
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
+      const response = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
       setSelectedScreenshot({
         ...screenshot,
         imageData: response.data.imageData
       });
     } catch (error) {
       console.error('Error al cargar imagen:', error);
+      toast.error('Error al cargar la imagen');
     }
   };
   
@@ -78,7 +118,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   
   if (isLoading) {
     return (
-      <div className="flex h-96 items-center justify-center">
+      <div className="flex h-48 items-center justify-center">
         <div className="text-center">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-600 border-r-transparent"></div>
           <p className="mt-2 text-gray-600">Cargando capturas de pantalla...</p>
@@ -99,9 +139,16 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           </div>
           <div className="ml-3">
             <h3 className="text-sm font-medium text-danger-800">
-              Error al cargar capturas de pantalla
+              {error}
             </h3>
-            <div className="mt-2 text-sm text-danger-700">{error}</div>
+            <div className="mt-2">
+              <button
+                className="rounded-md bg-danger-50 px-2 py-1.5 text-sm font-medium text-danger-800 hover:bg-danger-100"
+                onClick={() => window.location.reload()}
+              >
+                Intentar de nuevo
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -158,7 +205,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
                   <div className="flex items-center">
                     <UserGroupIcon className="h-5 w-5 text-gray-400 mr-2" />
                     <Link
-                      to={`/players/${screenshot.player?._id}`}
+                      to={`/players/${screenshot.player?._id || screenshot.player}`}
                       className="text-sm font-medium text-primary-600 hover:text-primary-500"
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -203,11 +250,17 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
               </button>
             </div>
             <div className="p-4 overflow-auto">
-              <img 
-                src={`data:image/png;base64,${selectedScreenshot.imageData}`} 
-                alt={`Captura de ${selectedScreenshot.activisionId}`}
-                className="w-full max-h-[70vh] object-contain"
-              />
+              {selectedScreenshot.imageData ? (
+                <img 
+                  src={`data:image/png;base64,${selectedScreenshot.imageData}`} 
+                  alt={`Captura de ${selectedScreenshot.activisionId}`}
+                  className="w-full max-h-[70vh] object-contain"
+                />
+              ) : (
+                <div className="flex h-64 items-center justify-center bg-gray-100">
+                  <p className="text-gray-500">No hay imagen disponible</p>
+                </div>
+              )}
             </div>
             {selectedScreenshot.notes && (
               <div className="p-4 bg-gray-50 border-t">
