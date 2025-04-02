@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
 
 const DeviceDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [device, setDevice] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,19 +15,41 @@ const DeviceDetail = () => {
     const fetchDeviceData = async () => {
       try {
         setIsLoading(true);
-        const response = await axios.get(`/api/devices/${id}`);
+        
+        // Usar URL base de la configuración
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+          toast.error('Sesión expirada, por favor inicie sesión nuevamente');
+          navigate('/login');
+          return;
+        }
+        
+        const headers = {
+          'Authorization': `Bearer ${token}`
+        };
+        
+        console.log(`Solicitud de dispositivo: ${apiUrl}/devices/${id}`);
+        const response = await axios.get(`${apiUrl}/devices/${id}`, { headers });
+        console.log('Respuesta del dispositivo:', response.data);
+        
         setDevice(response.data);
         setError(null);
       } catch (err) {
-        setError('Error al cargar la información del dispositivo');
-        console.error(err);
+        console.error('Error al cargar la información del dispositivo:', err);
+        if (err.response?.status === 404) {
+          setError('Dispositivo no encontrado');
+        } else {
+          setError('Error al cargar los datos del dispositivo');
+        }
       } finally {
         setIsLoading(false);
       }
     };
     
     fetchDeviceData();
-  }, [id]);
+  }, [id, navigate]);
   
   if (isLoading) {
     return (
@@ -38,7 +62,7 @@ const DeviceDetail = () => {
     );
   }
   
-  if (error || !device) {
+  if (error) {
     return (
       <div className="rounded-md bg-danger-50 p-4">
         <div className="flex">
@@ -50,9 +74,53 @@ const DeviceDetail = () => {
           </div>
           <div className="ml-3">
             <h3 className="text-sm font-medium text-danger-800">
-              Error al cargar la información del dispositivo
+              {error}
             </h3>
-            <div className="mt-2 text-sm text-danger-700">{error}</div>
+            <div className="mt-4 flex">
+              <button
+                type="button"
+                className="rounded-md bg-danger-50 px-2 py-1.5 text-sm font-medium text-danger-800 hover:bg-danger-100 mr-3"
+                onClick={() => navigate('/devices')}
+              >
+                Volver a dispositivos
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-danger-50 px-2 py-1.5 text-sm font-medium text-danger-800 hover:bg-danger-100"
+                onClick={() => window.location.reload()}
+              >
+                Reintentar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!device) {
+    return (
+      <div className="rounded-md bg-warning-50 p-4">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <ExclamationTriangleIcon 
+              className="h-5 w-5 text-warning-400" 
+              aria-hidden="true" 
+            />
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-warning-800">
+              No se encontró información del dispositivo
+            </h3>
+            <div className="mt-2">
+              <button
+                type="button"
+                className="rounded-md bg-warning-50 px-2 py-1.5 text-sm font-medium text-warning-800 hover:bg-warning-100"
+                onClick={() => navigate('/devices')}
+              >
+                Volver a la lista de dispositivos
+              </button>
+            </div>
           </div>
         </div>
       </div>
