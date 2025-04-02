@@ -101,17 +101,97 @@ const loginUser = async (req, res) => {
   }
 };
 
-// Funciones stubs para las rutas protegidas (puedes implementarlas más adelante)
+// Obtener perfil de usuario
 const getUserProfile = async (req, res) => {
-  return res.status(501).json({ message: 'Not Implemented' });
+  try {
+    // req.user ya está disponible desde el middleware auth
+    const user = await User.findById(req.user._id).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+    
+    return res.json(user);
+  } catch (error) {
+    console.error('[ERROR] Error al obtener perfil:', error);
+    return res.status(500).json({ message: 'Error al obtener perfil de usuario' });
+  }
 };
 
+// Actualizar perfil de usuario
 const updateUserProfile = async (req, res) => {
-  return res.status(501).json({ message: 'Not Implemented' });
+  try {
+    const { name, email } = req.body;
+    
+    // Verificar que se proporcionaron datos para actualizar
+    if (!name && !email) {
+      return res.status(400).json({ message: 'No hay datos para actualizar' });
+    }
+    
+    // Buscar y actualizar usuario
+    const user = await User.findById(req.user._id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+    
+    // Actualizar campos si se proporcionaron
+    if (name) user.name = name;
+    if (email) {
+      // Verificar si el nuevo email ya está registrado
+      const emailExists = await User.findOne({ email, _id: { $ne: req.user._id } });
+      if (emailExists) {
+        return res.status(400).json({ message: 'El correo electrónico ya está registrado' });
+      }
+      user.email = email;
+    }
+    
+    // Guardar cambios
+    await user.save();
+    
+    // Retornar usuario actualizado sin contraseña
+    const updatedUser = await User.findById(req.user._id).select('-password');
+    
+    return res.json(updatedUser);
+  } catch (error) {
+    console.error('[ERROR] Error al actualizar perfil:', error);
+    return res.status(500).json({ message: 'Error al actualizar perfil de usuario' });
+  }
 };
 
+// Cambiar contraseña
 const changePassword = async (req, res) => {
-  return res.status(501).json({ message: 'Not Implemented' });
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    // Verificar que se proporcionaron ambas contraseñas
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Se requieren ambas contraseñas' });
+    }
+    
+    // Buscar usuario
+    const user = await User.findById(req.user._id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+    
+    // Verificar contraseña actual
+    const isMatch = await user.matchPassword(currentPassword);
+    
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Contraseña actual incorrecta' });
+    }
+    
+    // Establecer nueva contraseña
+    user.password = newPassword;
+    await user.save();
+    
+    return res.json({ message: 'Contraseña actualizada correctamente' });
+  } catch (error) {
+    console.error('[ERROR] Error al cambiar contraseña:', error);
+    return res.status(500).json({ message: 'Error al cambiar contraseña' });
+  }
 };
 
 const getUsers = async (req, res) => {
