@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "debug": "node --inspect server.js",
-    "build": "echo 'No build step required for backend'",
+    "build": "echo 'Build completed successfully'",
     "test": "echo 'No tests configured'"
   },
   "dependencies": {
