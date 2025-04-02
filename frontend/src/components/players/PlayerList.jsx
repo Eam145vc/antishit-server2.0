@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import toast from 'react-hot-toast';
 
 const PlayerList = () => {
+  const navigate = useNavigate();
   const [players, setPlayers] = useState([]);
   const [filteredPlayers, setFilteredPlayers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -18,19 +20,37 @@ const PlayerList = () => {
     const fetchPlayers = async () => {
       try {
         setIsLoading(true);
-        const response = await axios.get('/api/players');
+        
+        // Usar URL base de la configuración
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+          toast.error('Sesión expirada, por favor inicie sesión nuevamente');
+          navigate('/login');
+          return;
+        }
+        
+        const headers = {
+          'Authorization': `Bearer ${token}`
+        };
+        
+        console.log('Haciendo petición a:', `${apiUrl}/players`);
+        const response = await axios.get(`${apiUrl}/players`, { headers });
+        console.log('Respuesta de jugadores:', response.data);
+        
         setPlayers(response.data);
         setError(null);
       } catch (err) {
+        console.error('Error al cargar jugadores:', err);
         setError('Error al cargar jugadores');
-        console.error(err);
       } finally {
         setIsLoading(false);
       }
     };
     
     fetchPlayers();
-  }, []);
+  }, [navigate]);
   
   // Filtrar jugadores
   useEffect(() => {
@@ -39,10 +59,16 @@ const PlayerList = () => {
         player.activisionId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         player.nickname?.toLowerCase().includes(searchTerm.toLowerCase());
       
+      // Para el filtro de estado, verificar si está realmente online
+      // (última actividad en los últimos 5 minutos)
+      const lastSeenDate = new Date(player.lastSeen);
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const isReallyOnline = player.isOnline && lastSeenDate > fiveMinutesAgo;
+      
       const matchesStatus = !filterStatus || 
-        (filterStatus === 'online' && player.isOnline) ||
-        (filterStatus === 'offline' && !player.isOnline) ||
-        (filterStatus === 'playing' && player.isGameRunning);
+        (filterStatus === 'online' && isReallyOnline) ||
+        (filterStatus === 'offline' && !isReallyOnline) ||
+        (filterStatus === 'playing' && isReallyOnline && player.isGameRunning);
       
       return matchesSearch && matchesStatus;
     });
@@ -73,9 +99,16 @@ const PlayerList = () => {
           </div>
           <div className="ml-3">
             <h3 className="text-sm font-medium text-danger-800">
-              Error al cargar jugadores
+              {error}
             </h3>
-            <div className="mt-2 text-sm text-danger-700">{error}</div>
+            <div className="mt-2">
+              <button
+                className="rounded-md bg-danger-50 px-2 py-1.5 text-sm font-medium text-danger-800 hover:bg-danger-100"
+                onClick={() => window.location.reload()}
+              >
+                Intentar de nuevo
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -169,61 +202,68 @@ const PlayerList = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
-              {filteredPlayers.map((player) => (
-                <tr key={player._id}>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <div className="flex items-center">
-                      <div className={`h-2.5 w-2.5 rounded-full ${player.isOnline ? 'bg-success-500' : 'bg-gray-300'}`}></div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          <Link to={`/players/${player._id}`} className="hover:text-primary-600">
-                            {player.activisionId}
-                          </Link>
+              {filteredPlayers.map((player) => {
+                // Verificar si está realmente online
+                const lastSeenDate = new Date(player.lastSeen);
+                const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+                const isReallyOnline = player.isOnline && lastSeenDate > fiveMinutesAgo;
+                
+                return (
+                  <tr key={player._id}>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <div className="flex items-center">
+                        <div className={`h-2.5 w-2.5 rounded-full ${isReallyOnline ? 'bg-success-500' : 'bg-gray-300'}`}></div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">
+                            <Link to={`/players/${player._id}`} className="hover:text-primary-600">
+                              {player.activisionId}
+                            </Link>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                    {player.nickname || 'N/A'}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <span
-                      className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                        !player.isOnline
-                          ? 'bg-gray-100 text-gray-800'
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                      {player.nickname || 'N/A'}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <span
+                        className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
+                          !isReallyOnline
+                            ? 'bg-gray-100 text-gray-800'
+                            : player.isGameRunning
+                            ? 'bg-success-100 text-success-800'
+                            : 'bg-warning-100 text-warning-800'
+                        }`}
+                      >
+                        {!isReallyOnline
+                          ? 'Desconectado'
                           : player.isGameRunning
-                          ? 'bg-success-100 text-success-800'
-                          : 'bg-warning-100 text-warning-800'
-                      }`}
-                    >
-                      {!player.isOnline
-                        ? 'Desconectado'
-                        : player.isGameRunning
-                        ? 'Jugando'
-                        : 'Conectado'}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                    Canal {player.currentChannelId}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                    {player.lastSeen
-                      ? formatDistanceToNow(new Date(player.lastSeen), {
-                          addSuffix: true,
-                          locale: es
-                        })
-                      : 'N/A'}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                    <Link
-                      to={`/players/${player._id}`}
-                      className="text-primary-600 hover:text-primary-900"
-                    >
-                      Detalles
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+                          ? 'Jugando'
+                          : 'Conectado'}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                      Canal {player.currentChannelId}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                      {player.lastSeen
+                        ? formatDistanceToNow(new Date(player.lastSeen), {
+                            addSuffix: true,
+                            locale: es
+                          })
+                        : 'N/A'}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+                      <Link
+                        to={`/players/${player._id}`}
+                        className="text-primary-600 hover:text-primary-900"
+                      >
+                        Detalles
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
