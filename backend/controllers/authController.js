@@ -57,7 +57,6 @@ const loginUser = async (req, res) => {
     console.log('[DEBUG] Request body:', req.body);
 
     const { email, password } = req.body;
-
     if (!email || !password) {
       console.log('[DEBUG] Faltan email o password en la petición de login');
       return res.status(400).json({ message: 'Email y contraseña son requeridos' });
@@ -101,10 +100,33 @@ const loginUser = async (req, res) => {
   }
 };
 
-// (Otras funciones de autenticación permanecen iguales)
+// Funciones stubs para las rutas protegidas (puedes implementarlas más adelante)
+const getUserProfile = async (req, res) => {
+  return res.status(501).json({ message: 'Not Implemented' });
+};
+
+const updateUserProfile = async (req, res) => {
+  return res.status(501).json({ message: 'Not Implemented' });
+};
+
+const changePassword = async (req, res) => {
+  return res.status(501).json({ message: 'Not Implemented' });
+};
+
+const getUsers = async (req, res) => {
+  return res.status(501).json({ message: 'Not Implemented' });
+};
+
+const deleteUser = async (req, res) => {
+  return res.status(501).json({ message: 'Not Implemented' });
+};
 
 module.exports = {
   registerUser,
   loginUser,
-  // otras exportaciones...
+  getUserProfile,
+  updateUserProfile,
+  changePassword,
+  getUsers,
+  deleteUser
 };
