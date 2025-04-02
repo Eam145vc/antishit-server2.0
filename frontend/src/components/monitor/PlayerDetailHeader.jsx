@@ -11,23 +11,33 @@ import {
 import { useSocket } from '../../context/SocketContext';
 import toast from 'react-hot-toast';
 
-const PlayerDetailHeader = ({ player }) => {
+const PlayerDetailHeader = ({ player = {} }) => {
   const [isReporting, setIsReporting] = useState(false);
   const { requestScreenshot } = useSocket();
   
+  // Valores por defecto para prevenir errores
+  const {
+    _id = '',
+    activisionId = 'N/A',
+    nickname = '',
+    lastSeen = new Date(),
+    isOnline = false,
+    isGameRunning = false,
+    currentChannelId = 'N/A',
+    suspiciousActivity = false
+  } = player || {};
+  
   // Verificar si el jugador realmente está conectado
-  const lastSeenDate = new Date(player.lastSeen);
+  const lastSeenDate = new Date(lastSeen);
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-  const isReallyOnline = player.isOnline && lastSeenDate > fiveMinutesAgo;
+  const isReallyOnline = isOnline && lastSeenDate > fiveMinutesAgo;
   
   const handleRequestScreenshot = async () => {
     try {
-      const result = requestScreenshot(player.activisionId, player.currentChannelId);
-      if (result) {
-        toast.success(`Captura solicitada para ${player.activisionId}`);
-      } else {
-        toast.error('No se pudo solicitar la captura');
-      }
+      const result = requestScreenshot(activisionId, currentChannelId);
+      result 
+        ? toast.success(`Captura solicitada para ${activisionId}`)
+        : toast.error('No se pudo solicitar la captura');
     } catch (error) {
       toast.error('Error al solicitar captura');
     }
@@ -36,11 +46,9 @@ const PlayerDetailHeader = ({ player }) => {
   const toggleSuspicious = async () => {
     setIsReporting(true);
     try {
-      await axios.put(`/api/players/${player._id}/suspect`, {
-        suspicious: !player.suspiciousActivity
+      await axios.put(`/api/players/${_id}/suspect`, {
+        suspicious: !suspiciousActivity
       });
-      // Actualizar localmente mientras se recarga
-      player.suspiciousActivity = !player.suspiciousActivity;
       toast.success('Estado de sospechoso actualizado');
     } catch (error) {
       console.error('Error al marcar jugador:', error);
@@ -48,6 +56,20 @@ const PlayerDetailHeader = ({ player }) => {
     } finally {
       setIsReporting(false);
     }
+  };
+  
+  // Función para obtener clases de estado
+  const getStatusClasses = () => {
+    if (!isReallyOnline) return 'bg-gray-100 text-gray-800';
+    return isGameRunning 
+      ? 'bg-success-100 text-success-800' 
+      : 'bg-warning-100 text-warning-800';
+  };
+  
+  // Obtener texto de estado
+  const getStatusText = () => {
+    if (!isReallyOnline) return 'Desconectado';
+    return isGameRunning ? 'Jugando' : 'Conectado';
   };
   
   return (
@@ -58,18 +80,18 @@ const PlayerDetailHeader = ({ player }) => {
             <div className="flex items-center">
               <div className={`h-3 w-3 rounded-full ${isReallyOnline ? 'bg-success-500' : 'bg-gray-300'}`}></div>
               <h1 className="ml-2 text-2xl font-bold text-gray-900">
-                {player.activisionId}
+                {activisionId}
               </h1>
-              {player.suspiciousActivity && (
+              {suspiciousActivity && (
                 <span className="ml-3 inline-flex items-center rounded-full bg-danger-100 px-2.5 py-0.5 text-xs font-medium text-danger-800">
                   <ExclamationTriangleIcon className="mr-1 h-3 w-3" aria-hidden="true" />
                   Sospechoso
                 </span>
               )}
             </div>
-            {player.nickname && (
+            {nickname && (
               <p className="mt-1 text-sm text-gray-500">
-                Nickname: {player.nickname}
+                Nickname: {nickname}
               </p>
             )}
           </div>
@@ -81,7 +103,6 @@ const PlayerDetailHeader = ({ player }) => {
               className={`rounded-md px-3 py-2 text-sm font-medium ${
                 isReallyOnline
                   ? 'bg-primary-600 text-white hover:bg-primary-700'
-                  : 'bg-gray-200 text
                   : 'bg-gray-200 text-gray-500 cursor-not-allowed'
               }`}
             >
@@ -95,14 +116,14 @@ const PlayerDetailHeader = ({ player }) => {
               onClick={toggleSuspicious}
               disabled={isReporting}
               className={`rounded-md px-3 py-2 text-sm font-medium ${
-                player.suspiciousActivity
+                suspiciousActivity
                   ? 'bg-warning-100 text-warning-800 hover:bg-warning-200'
                   : 'bg-danger-600 text-white hover:bg-danger-700'
               }`}
             >
               <div className="flex items-center">
                 <ExclamationTriangleIcon className="mr-1 h-4 w-4" />
-                {player.suspiciousActivity ? 'Quitar marca' : 'Marcar sospechoso'}
+                {suspiciousActivity ? 'Quitar marca' : 'Marcar sospechoso'}
               </div>
             </button>
           </div>
@@ -114,19 +135,9 @@ const PlayerDetailHeader = ({ player }) => {
               <ComputerDesktopIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
               <span className="ml-2 text-sm font-medium text-gray-500">Estado:</span>
               <span
-                className={`ml-2 inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                  !isReallyOnline
-                    ? 'bg-gray-100 text-gray-800'
-                    : player.isGameRunning
-                    ? 'bg-success-100 text-success-800'
-                    : 'bg-warning-100 text-warning-800'
-                }`}
+                className={`ml-2 inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${getStatusClasses()}`}
               >
-                {!isReallyOnline
-                  ? 'Desconectado'
-                  : player.isGameRunning
-                  ? 'Jugando'
-                  : 'Conectado'}
+                {getStatusText()}
               </span>
             </div>
           </div>
@@ -136,8 +147,8 @@ const PlayerDetailHeader = ({ player }) => {
               <ClockIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
               <span className="ml-2 text-sm font-medium text-gray-500">Última actividad:</span>
               <span className="ml-2 text-sm text-gray-700">
-                {player.lastSeen
-                  ? formatDistanceToNow(new Date(player.lastSeen), {
+                {lastSeen
+                  ? formatDistanceToNow(new Date(lastSeen), {
                       addSuffix: true,
                       locale: es
                     })
@@ -150,7 +161,7 @@ const PlayerDetailHeader = ({ player }) => {
             <div className="flex items-center">
               <span className="text-sm font-medium text-gray-500">Canal actual:</span>
               <span className="ml-2 text-sm text-gray-700">
-                Canal {player.currentChannelId || 'N/A'}
+                Canal {currentChannelId || 'N/A'}
               </span>
             </div>
           </div>
