@@ -9,21 +9,20 @@ import {
   BellAlertIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { Doughnut } from 'react-chartjs-2';
-import StatsCard from './StatsCard';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
+import { Doughnut, Bar } from 'react-chartjs-2';
 import PlayerStatusTable from './PlayerStatusTable';
-import DeviceStatusPanel from './DeviceStatusPanel';
+import GlobalStatsCard from './GlobalStatsCard';
 import RecentAlertsList from './RecentAlertsList';
 
 // Registrar componentes de Chart.js
-ChartJS.register(ArcElement, Tooltip, Legend);
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [players, setPlayers] = useState([]);
   const [recentAlerts, setRecentAlerts] = useState([]);
-  const [suspiciousDevices, setSuspiciousDevices] = useState([]);
+  const [channelStats, setChannelStats] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -32,26 +31,43 @@ const Dashboard = () => {
       try {
         setIsLoading(true);
         
-        // Obtener estadísticas
+        // Obtener estadísticas globales
         const statsResponse = await api.get('/monitor/stats');
         setStats(statsResponse.data);
         
-        // Obtener jugadores activos
+        // Obtener jugadores por canal
         const playersResponse = await api.get('/players');
         setPlayers(playersResponse.data);
         
-        // Obtener alertas recientes
-        try {
-          const alertsResponse = await api.get('/alerts?limit=5');
-          setRecentAlerts(alertsResponse.data);
-        } catch (error) {
-          console.error('Error al cargar alertas:', error);
-          setRecentAlerts([]);
-        }
+        // Calcular estadísticas por canal
+        const channelStatsMap = {};
+        playersResponse.data.forEach(player => {
+          const channelId = player.currentChannelId || 0;
+          if (!channelStatsMap[channelId]) {
+            channelStatsMap[channelId] = {
+              total: 0,
+              online: 0,
+              playing: 0
+            };
+          }
+          channelStatsMap[channelId].total++;
+          if (player.isOnline) channelStatsMap[channelId].online++;
+          if (player.isGameRunning) channelStatsMap[channelId].playing++;
+        });
         
-        // Obtener dispositivos sospechosos
-        const devicesResponse = await api.get('/devices/suspicious');
-        setSuspiciousDevices(devicesResponse.data);
+        // Convertir a array para gráficos
+        const channelStatsArray = Object.entries(channelStatsMap)
+          .map(([channelId, stats]) => ({
+            channelId: parseInt(channelId),
+            ...stats
+          }))
+          .sort((a, b) => a.channelId - b.channelId);
+        
+        setChannelStats(channelStatsArray);
+        
+        // Obtener alertas recientes
+        const alertsResponse = await api.get('/alerts?limit=10');
+        setRecentAlerts(alertsResponse.data);
         
         setError(null);
       } catch (err) {
@@ -92,7 +108,29 @@ const Dashboard = () => {
     ],
   };
   
-  // Configuración para el gráfico
+  // Datos para el gráfico de canales
+  const channelChartData = {
+    labels: channelStats.map(c => `Canal ${c.channelId}`),
+    datasets: [
+      {
+        label: 'Jugadores totales',
+        data: channelStats.map(c => c.total),
+        backgroundColor: '#3B82F6', // Color primario
+      },
+      {
+        label: 'Jugadores en línea',
+        data: channelStats.map(c => c.online),
+        backgroundColor: '#10B981', // Color de éxito
+      },
+      {
+        label: 'Jugando',
+        data: channelStats.map(c => c.playing),
+        backgroundColor: '#EF4444', // Color de peligro
+      }
+    ]
+  };
+  
+  // Configuración para gráficos
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -107,6 +145,18 @@ const Dashboard = () => {
       }
     },
     cutout: '70%'
+  };
+  
+  const channelBarOptions = {
+    responsive: true,
+    scales: {
+      x: {
+        stacked: true,
+      },
+      y: {
+        stacked: true
+      }
+    }
   };
   
   if (isLoading) {
@@ -135,15 +185,6 @@ const Dashboard = () => {
               Error al cargar el dashboard
             </h3>
             <div className="mt-2 text-sm text-danger-700">{error}</div>
-            <div className="mt-4">
-              <button
-                type="button"
-                className="rounded-md bg-danger-50 px-2 py-1.5 text-sm font-medium text-danger-800 hover:bg-danger-100"
-                onClick={() => window.location.reload()}
-              >
-                Reintentar
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -153,53 +194,45 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Dashboard Anti-Cheat</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Resumen del sistema de monitoreo Anti-Cheat
+          Monitoreo en tiempo real de jugadores y dispositivos
         </p>
       </div>
       
-      {/* Tarjetas de estadísticas */}
+      {/* Estadísticas globales */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <StatsCard
-          title="Jugadores Activos"
-          value={stats?.players.online || 0}
-          total={stats?.players.total || 0}
+        <GlobalStatsCard
+          title="Total de Jugadores"
+          value={stats?.players.total || 0}
           icon={UsersIcon}
           color="primary"
-          href="/players"
         />
-        <StatsCard
-          title="Jugando Ahora"
-          value={stats?.players.playing || 0}
-          total={stats?.players.online || 0}
+        <GlobalStatsCard
+          title="Jugadores Activos"
+          value={stats?.players.online || 0}
           icon={ShieldCheckIcon}
           color="success"
-          href="/live-monitor"
         />
-        <StatsCard
+        <GlobalStatsCard
+          title="Jugando Ahora"
+          value={stats?.players.playing || 0}
+          icon={DeviceTabletIcon}
+          color="warning"
+        />
+        <GlobalStatsCard
           title="Dispositivos"
           value={stats?.devices.total || 0}
           valueDetail={`${stats?.devices.byTrustLevel.suspicious || 0} sospechosos`}
           icon={DeviceTabletIcon}
-          color={stats?.devices.byTrustLevel.suspicious > 0 ? "warning" : "primary"}
-          href="/devices"
+          color={stats?.devices.byTrustLevel.suspicious > 0 ? "danger" : "primary"}
         />
-        <StatsCard
+        <GlobalStatsCard
           title="Capturas"
           value={stats?.screenshots.last24h || 0}
           valueDetail="últimas 24h"
           icon={CameraIcon}
           color="primary"
-          href="/screenshots"
-        />
-        <StatsCard
-          title="Alertas"
-          value={recentAlerts.length}
-          valueDetail="recientes"
-          icon={BellAlertIcon}
-          color={recentAlerts.length > 0 ? "danger" : "primary"}
-          href="/alerts"
         />
       </div>
       
@@ -207,50 +240,11 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Panel izquierdo */}
         <div className="space-y-6">
-          {/* Jugadores activos */}
-          <div className="card">
-            <div className="card-header flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">
-                Jugadores Activos
-              </h3>
-              <Link
-                to="/players"
-                className="text-sm font-medium text-primary-600 hover:text-primary-500"
-              >
-                Ver todos
-              </Link>
-            </div>
-            <div className="card-body p-0">
-              <PlayerStatusTable players={players.slice(0, 5)} />
-            </div>
-          </div>
-          
-          {/* Dispositivos sospechosos */}
-          <div className="card">
-            <div className="card-header flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">
-                Dispositivos Sospechosos
-              </h3>
-              <Link
-                to="/devices/suspicious"
-                className="text-sm font-medium text-primary-600 hover:text-primary-500"
-              >
-                Ver todos
-              </Link>
-            </div>
-            <div className="card-body">
-              <DeviceStatusPanel devices={suspiciousDevices.slice(0, 5)} />
-            </div>
-          </div>
-        </div>
-        
-        {/* Panel derecho */}
-        <div className="space-y-6">
           {/* Distribución de dispositivos */}
           <div className="card">
             <div className="card-header">
               <h3 className="text-lg font-medium text-gray-900">
-                Distribución de Dispositivos
+                Dispositivos por Confiabilidad
               </h3>
             </div>
             <div className="card-body">
@@ -283,6 +277,41 @@ const Dashboard = () => {
                   <div className="text-xs text-gray-500">Sospechosos</div>
                 </div>
               </div>
+            </div>
+          </div>
+          
+          {/* Distribución por canal */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-medium text-gray-900">
+                Estadísticas por Canal
+              </h3>
+            </div>
+            <div className="card-body">
+              <div className="h-64">
+                <Bar data={channelChartData} options={channelBarOptions} />
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Panel derecho */}
+        <div className="space-y-6">
+          {/* Jugadores activos */}
+          <div className="card">
+            <div className="card-header flex items-center justify-between">
+              <h3 className="text-lg font-medium text-gray-900">
+                Jugadores Activos
+              </h3>
+              <Link
+                to="/players"
+                className="text-sm font-medium text-primary-600 hover:text-primary-500"
+              >
+                Ver todos
+              </Link>
+            </div>
+            <div className="card-body p-0">
+              <PlayerStatusTable players={players.slice(0, 5)} />
             </div>
           </div>
           
