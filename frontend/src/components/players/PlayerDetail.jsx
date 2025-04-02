@@ -27,9 +27,17 @@ const PlayerDetail = () => {
   const [processData, setProcessData] = useState([]);
   const [networkData, setNetworkData] = useState([]);
   const [systemInfo, setSystemInfo] = useState({});
+  const [hardwareInfo, setHardwareInfo] = useState({});
   const [monitorData, setMonitorData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState(0);
+  
+  // DEBUG: Imprimir cuando systemInfo o hardwareInfo cambian
+  useEffect(() => {
+    console.log("systemInfo actualizado:", systemInfo);
+    console.log("hardwareInfo actualizado:", hardwareInfo);
+  }, [systemInfo, hardwareInfo]);
   
   // Escuchar actualizaciones en tiempo real de monitoreo
   useEffect(() => {
@@ -37,13 +45,25 @@ const PlayerDetail = () => {
 
     const handleMonitorUpdate = (data) => {
       if (data.activisionId === player.activisionId) {
+        console.log("Recibida actualización en tiempo real:", data);
+        
         // Actualizar datos en tiempo real
         if (data.processes) setProcessData(data.processes);
         if (data.networkConnections) setNetworkData(data.networkConnections);
+        
+        // Actualizar información del sistema de manera segura
         if (data.systemInfo) {
           setSystemInfo(prevInfo => ({
             ...prevInfo,
             ...data.systemInfo
+          }));
+        }
+        
+        // Actualizar información de hardware si está disponible
+        if (data.hardwareInfo) {
+          setHardwareInfo(prevInfo => ({
+            ...prevInfo,
+            ...data.hardwareInfo
           }));
         }
       }
@@ -75,7 +95,10 @@ const PlayerDetail = () => {
         };
         
         // Obtener información del jugador
+        console.log(`Solicitando datos del jugador: ${apiUrl}/players/${id}`);
         const playerResponse = await axios.get(`${apiUrl}/players/${id}`, { headers });
+        console.log("Respuesta de la API (jugador):", playerResponse.data);
+        
         const playerData = playerResponse.data;
         
         if (!playerData || !playerData._id) {
@@ -84,8 +107,12 @@ const PlayerDetail = () => {
         
         setPlayer(playerData);
         
-        // Establecer información del sistema inicial
+        // Establecer información del sistema y hardware desde los datos del jugador
+        // Asegurarse de que sean objetos válidos incluso si no existen en la respuesta
         setSystemInfo(playerData.systemInfo || {});
+        setHardwareInfo(playerData.hardwareInfo || {});
+        
+        console.log("Hardware info inicializado:", playerData.hardwareInfo || {});
         
         // Obtener dispositivos del jugador
         const devicesResponse = await axios.get(`${apiUrl}/players/${id}/devices`, { headers });
@@ -97,6 +124,7 @@ const PlayerDetail = () => {
         
         // Obtener historial de monitoreo más reciente
         const historyResponse = await axios.get(`${apiUrl}/players/${id}/history?limit=1`, { headers });
+        console.log("Respuesta de historial:", historyResponse.data);
         
         if (historyResponse.data && historyResponse.data.length > 0) {
           const latestMonitorData = historyResponse.data[0];
@@ -106,11 +134,21 @@ const PlayerDetail = () => {
           setProcessData(latestMonitorData.processes || []);
           setNetworkData(latestMonitorData.networkConnections || []);
           
-          // Actualizar información del sistema
-          setSystemInfo(prevInfo => ({
-            ...prevInfo,
-            ...latestMonitorData.systemInfo
-          }));
+          // Actualizar información del sistema de manera segura
+          if (latestMonitorData.systemInfo) {
+            setSystemInfo(prevInfo => ({
+              ...prevInfo,
+              ...latestMonitorData.systemInfo
+            }));
+          }
+          
+          // También actualizar hardwareInfo si está presente en monitorData
+          if (latestMonitorData.hardwareInfo) {
+            setHardwareInfo(prevInfo => ({
+              ...prevInfo,
+              ...latestMonitorData.hardwareInfo
+            }));
+          }
         }
         
         setError(null);
@@ -207,7 +245,10 @@ const PlayerDetail = () => {
       <PlayerDetailHeader player={player} />
       
       {/* Pestañas de información */}
-      <Tab.Group>
+      <Tab.Group
+        selectedIndex={activeTab} 
+        onChange={setActiveTab}
+      >
         <Tab.List className="flex space-x-1 rounded-xl bg-gray-100 p-1">
           <Tab
             className={({ selected }) =>
@@ -279,7 +320,7 @@ const PlayerDetail = () => {
           <Tab.Panel className="rounded-xl bg-white p-3">
             <SystemInfoPanel 
               systemInfo={systemInfo} 
-              hardwareInfo={player.hardwareInfo || {}} 
+              hardwareInfo={hardwareInfo} 
             />
           </Tab.Panel>
           <Tab.Panel className="rounded-xl bg-white p-3">
