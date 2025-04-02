@@ -255,7 +255,229 @@ const saveMonitorData = async (req, res) => {
   }
 };
 
-// [Resto de las funciones del controlador permanecen iguales]
+// @desc    Actualizar estado del juego
+// @route   POST /api/monitor/game-status
+// @access  Público (desde cliente anti-cheat)
+const updateGameStatus = async (req, res) => {
+  try {
+    const { activisionId, channelId, isGameRunning } = req.body;
+    
+    // Verificar campos obligatorios
+    if (!activisionId || channelId === undefined || isGameRunning === undefined) {
+      return res.status(400).json({ message: 'Faltan campos obligatorios' });
+    }
+    
+    // Buscar jugador
+    const player = await Player.findOne({ activisionId });
+    
+    if (!player) {
+      return res.status(404).json({ message: 'Jugador no encontrado' });
+    }
+    
+    // Actualizar estado
+    const previousStatus = player.isGameRunning;
+    player.isGameRunning = isGameRunning;
+    player.lastSeen = new Date();
+    
+    await player.save();
+    
+    // Si cambió el estado, emitir evento
+    if (previousStatus !== isGameRunning) {
+      const eventType = isGameRunning ? 'game-started' : 'game-stopped';
+      
+      emitAlert({
+        type: eventType,
+        playerId: player._id,
+        activisionId,
+        channelId,
+        message: isGameRunning ? 
+          `${activisionId} inició el juego` : 
+          `${activisionId} cerró el juego`,
+        severity: 'info',
+        timestamp: new Date()
+      });
+    }
+    
+    res.json({
+      success: true,
+      isGameRunning
+    });
+  } catch (error) {
+    console.error('Error al actualizar estado del juego:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Reportar error del cliente
+// @route   POST /api/monitor/error
+// @access  Público (desde cliente anti-cheat)
+const reportClientError = async (req, res) => {
+  try {
+    const { error, timestamp, activisionId } = req.body;
+    
+    // Emitir alerta de error
+    if (activisionId) {
+      const player = await Player.findOne({ activisionId });
+      
+      if (player) {
+        emitAlert({
+          type: 'client-error',
+          playerId: player._id,
+          activisionId,
+          channelId: player.currentChannelId,
+          message: `Error en cliente: ${activisionId}`,
+          details: error,
+          severity: 'medium',
+          timestamp: timestamp || new Date()
+        });
+      }
+    }
+    
+    res.json({
+      success: true
+    });
+  } catch (error) {
+    console.error('Error al reportar error del cliente:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Marcar jugador como desconectado
+// @route   PUT /api/monitor/disconnect
+// @access  Privado
+const markPlayerDisconnected = async (req, res) => {
+  try {
+    const { activisionId } = req.body;
+    
+    if (!activisionId) {
+      return res.status(400).json({ message: 'ID de Activision es requerido' });
+    }
+    
+    const player = await Player.findOne({ activisionId });
+    
+    if (!player) {
+      return res.status(404).json({ message: 'Jugador no encontrado' });
+    }
+    
+    // Actualizar estado
+    player.isOnline = false;
+    player.isGameRunning = false;
+    await player.save();
+    
+    // Emitir notificación
+    emitAlert({
+      type: 'player-disconnected',
+      playerId: player._id,
+      activisionId,
+      channelId: player.currentChannelId,
+      message: `Jugador desconectado: ${activisionId}`,
+      severity: 'info',
+      timestamp: new Date()
+    });
+    
+    res.json({
+      success: true,
+      message: 'Jugador marcado como desconectado'
+    });
+  } catch (error) {
+    console.error('Error al marcar jugador como desconectado:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Obtener estadísticas de monitoreo
+// @route   GET /api/monitor/stats
+// @access  Privado
+const getMonitoringStats = async (req, res) => {
+  try {
+    // Contar jugadores activos
+    const onlinePlayers = await Player.countDocuments({ isOnline: true });
+    
+    // Contar jugadores con juego activo
+    const playersInGame = await Player.countDocuments({ 
+      isOnline: true, 
+      isGameRunning: true 
+    });
+    
+    // Contar dispositivos por nivel de confianza
+    const trustedDevices = await Device.countDocuments({ trustLevel: 'Trusted' });
+    const unknownDevices = await Device.countDocuments({ trustLevel: 'Unknown' });
+    const externalDevices = await Device.countDocuments({ trustLevel: 'External' });
+    const suspiciousDevices = await Device.countDocuments({ trustLevel: 'Suspicious' });
+    
+    // Contar dispositivos por tipo
+    const usbDevices = await Device.countDocuments({ 
+      type: { $regex: 'usb', $options: 'i' } 
+    });
+    
+    const pciDevices = await Device.countDocuments({ 
+      type: { $regex: 'pci', $options: 'i' } 
+    });
+    
+    const monitors = await Device.countDocuments({ isMonitor: true });
+    
+    // Contar capturas recientes
+    const recentScreenshots = await Screenshot.countDocuments({
+      capturedAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    });
+    
+    // Retornar estadísticas
+    res.json({
+      players: {
+        total: await Player.countDocuments(),
+        online: onlinePlayers,
+        playing: playersInGame
+      },
+      devices: {
+        total: await Device.countDocuments(),
+        byTrustLevel: {
+          trusted: trustedDevices,
+          unknown: unknownDevices,
+          external: externalDevices,
+          suspicious: suspiciousDevices
+        },
+        byType: {
+          usb: usbDevices,
+          pci: pciDevices,
+          monitor: monitors,
+          other: await Device.countDocuments({
+            $and: [
+              { type: { $not: { $regex: 'usb', $options: 'i' } } },
+              { type: { $not: { $regex: 'pci', $options: 'i' } } },
+              { isMonitor: { $ne: true } }
+            ]
+          })
+        }
+      },
+      screenshots: {
+        total: await Screenshot.countDocuments(),
+        last24h: recentScreenshots
+      }
+    });
+  } catch (error) {
+    console.error('Error al obtener estadísticas de monitoreo:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Obtener datos de monitoreo por ID
+// @route   GET /api/monitor/:id
+// @access  Privado
+const getMonitorDataById = async (req, res) => {
+  try {
+    const monitorData = await MonitorData.findById(req.params.id)
+      .populate('player', 'activisionId currentChannelId');
+    
+    if (!monitorData) {
+      return res.status(404).json({ message: 'Datos de monitoreo no encontrados' });
+    }
+    
+    res.json(monitorData);
+  } catch (error) {
+    console.error('Error al obtener datos de monitoreo:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
 
 // Función auxiliar para procesar dispositivos
 async function processDevices(playerId, devices) {
@@ -282,13 +504,81 @@ async function processDevices(playerId, devices) {
         device.locationInfo = deviceInfo.locationInfo || device.locationInfo;
         device.trustLevel = deviceInfo.trustLevel || device.trustLevel;
         
+        // Determinar si es un monitor
+        if (deviceInfo.type?.toLowerCase().includes('monitor') ||
+            deviceInfo.name?.toLowerCase().includes('monitor') ||
+            deviceInfo.description?.toLowerCase().includes('monitor') ||
+            deviceInfo.name?.toLowerCase().includes('display')) {
+          device.isMonitor = true;
+          
+          // Extraer información del monitor
+          if (deviceInfo.description && deviceInfo.description.includes('x')) {
+            device.monitorInfo = {
+              ...device.monitorInfo,
+              resolution: deviceInfo.description
+            };
+          }
+        }
+        
+        // Registrar conexión si cambió el estado
+        if (deviceInfo.connectionStatus && 
+            device.connectionStatus !== deviceInfo.connectionStatus) {
+          device.connectionHistory.push({
+            status: deviceInfo.connectionStatus,
+            timestamp: new Date()
+          });
+        }
+        
         await device.save();
       } else {
         // Crear nuevo dispositivo
-        await Device.create({
+        const newDevice = {
           player: playerId,
-          ...deviceInfo
-        });
+          ...deviceInfo,
+          connectionHistory: [{
+            status: deviceInfo.connectionStatus || 'Connected',
+            timestamp: new Date()
+          }]
+        };
+        
+        // Determinar si es un monitor
+        if (deviceInfo.type?.toLowerCase().includes('monitor') ||
+            deviceInfo.name?.toLowerCase().includes('monitor') ||
+            deviceInfo.description?.toLowerCase().includes('monitor') ||
+            deviceInfo.name?.toLowerCase().includes('display')) {
+          newDevice.isMonitor = true;
+          
+          // Extraer información del monitor
+          if (deviceInfo.description && deviceInfo.description.includes('x')) {
+            newDevice.monitorInfo = {
+              resolution: deviceInfo.description,
+              refreshRate: '',
+              connectionType: ''
+            };
+          }
+        }
+        
+        const createdDevice = await Device.create(newDevice);
+        
+        // Emitir alerta de nuevo dispositivo si es externo
+        if (deviceInfo.trustLevel === 'External' || 
+            deviceInfo.trustLevel === 'Suspicious') {
+          const player = await Player.findById(playerId);
+          
+          if (player) {
+            emitAlert({
+              type: 'new-device',
+              playerId: player._id,
+              activisionId: player.activisionId,
+              channelId: player.currentChannelId,
+              message: `Nuevo dispositivo detectado: ${deviceInfo.name}`,
+              deviceId: deviceInfo.deviceId,
+              trustLevel: deviceInfo.trustLevel,
+              severity: 'medium',
+              timestamp: new Date()
+            });
+          }
+        }
       }
     }
   } catch (error) {
@@ -298,6 +588,10 @@ async function processDevices(playerId, devices) {
 
 module.exports = {
   saveMonitorData,
-  setupDisconnectionCheck,
-  // Otras funciones existentes
+  updateGameStatus,
+  reportClientError,
+  markPlayerDisconnected,
+  getMonitoringStats,
+  getMonitorDataById,
+  setupDisconnectionCheck
 };
