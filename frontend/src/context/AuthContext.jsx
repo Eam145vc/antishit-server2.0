@@ -10,6 +10,19 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   
+  // Escuchar el evento de autorización para redirigir con React Router
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      navigate('/login');
+    };
+
+    window.addEventListener('unauthorized', handleUnauthorized);
+
+    return () => {
+      window.removeEventListener('unauthorized', handleUnauthorized);
+    };
+  }, [navigate]);
+  
   // Verificar token y cargar usuario al iniciar
   useEffect(() => {
     const checkAuth = async () => {
@@ -35,31 +48,23 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
   
-  // Login
+  // Función de login
   const login = async (email, password) => {
     try {
       const { data } = await api.post('/auth/login', { email, password });
       
-      // Guardar token
+      // Guardar token y actualizar estado de usuario
       localStorage.setItem('token', data.token);
-      
-      // Actualizar estado de usuario
       setUser(data);
-      
-      // Mostrar mensaje de éxito
       toast.success('Inicio de sesión exitoso');
-      
-      // Redirigir al dashboard
       navigate('/dashboard');
-      
       return true;
     } catch (error) {
-      // El manejo de errores se realiza en el interceptor de axios
       throw error;
     }
   };
   
-  // Logout
+  // Función de logout
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
