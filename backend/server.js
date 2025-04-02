@@ -13,8 +13,14 @@ connectDB();
 // Inicializar app
 const app = express();
 
-// Middleware
-app.use(cors());
+// Middleware CORS mejorado
+app.use(cors({
+  origin: ['https://anti5-0-site.onrender.com', 'http://localhost:3000'], // Dominios permitidos
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('dev'));
