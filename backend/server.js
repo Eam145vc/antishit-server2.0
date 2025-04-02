@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const mongoose = require('mongoose');
 const { connectDB } = require('./config/db');
 const socketSetup = require('./utils/socket');
 
@@ -13,7 +14,12 @@ const app = express();
 
 // Middleware CORS mejorado
 app.use(cors({
-  origin: ['https://anti5-0-site.onrender.com', 'http://localhost:3000'], // Dominios permitidos
+  origin: [
+    'https://anti5-0-site.onrender.com', 
+    'http://localhost:3000',
+    'https://anti5-0.onrender.com',
+    /\.onrender\.com$/  // Permitir subdominios de Render
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -36,9 +42,32 @@ app.all('/api/*', (req, res) => {
   res.status(404).json({ message: 'API route not found' });
 });
 
-// Ruta de estado para Render
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+// Ruta de estado para Render con más información
+app.get('/health', async (req, res) => {
+  try {
+    const dbStatus = mongoose.connection.readyState;
+    const dbStatusMessage = 
+      dbStatus === 0 ? 'disconnected' :
+      dbStatus === 1 ? 'connected' :
+      dbStatus === 2 ? 'connecting' :
+      dbStatus === 3 ? 'disconnecting' : 'unknown';
+
+    res.status(200).json({ 
+      status: 'ok', 
+      database: {
+        status: dbStatusMessage,
+        host: mongoose.connection.host
+      },
+      environment: process.env.NODE_ENV || 'development',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: error.message 
+    });
+  }
 });
 
 // Ruta raíz para verificar que el servidor está funcionando
