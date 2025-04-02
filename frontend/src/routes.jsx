@@ -11,6 +11,7 @@ import LiveMonitor from './components/monitor/LiveMonitor';
 import Alerts from './components/alerts/Alerts';
 import NotFound from './components/layout/NotFound';
 import Profile from './components/auth/Profile';
+import UserManagement from './components/admin/UserManagement';
 
 // Rutas Protegidas
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -122,6 +123,14 @@ const routes = [
     element: (
       <ProtectedRoute>
         <Alerts />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/admin/users',
+    element: (
+      <ProtectedRoute adminOnly={true}>
+        <UserManagement />
       </ProtectedRoute>
     ),
   },
