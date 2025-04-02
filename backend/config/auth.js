@@ -1,11 +1,13 @@
 const jwt = require('jsonwebtoken');
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
+  const token = jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: '12h',
   });
+
+  console.log('[DEBUG] Token generado:', token); // ✅ Ahora sí está definido
+
+  return token;
 };
 
 module.exports = { generateToken };
-console.log('[DEBUG] JWT_SECRET usado:', process.env.JWT_SECRET);
-console.log('[DEBUG] Token generado:', token);
