@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { Navigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../services/api'; // Usamos la instancia configurada
 import toast from 'react-hot-toast';
 
 const Login = () => {
@@ -28,16 +28,18 @@ const Login = () => {
     
     try {
       if (isLogin) {
-        // Inicio de sesión
+        // Inicio de sesión a través del AuthContext
         await login(email, password);
       } else {
         // Registro
         if (password !== confirmPassword) {
           setError('Las contraseñas no coinciden');
+          setIsLoading(false);
           return;
         }
         
-        const response = await axios.post('/api/auth/register', {
+        // Usar la instancia de api para que se aplique la URL base
+        const response = await api.post('/auth/register', {
           name,
           email,
           password
