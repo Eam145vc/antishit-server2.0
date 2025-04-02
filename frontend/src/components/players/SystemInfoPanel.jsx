@@ -9,26 +9,27 @@ import {
 } from '@heroicons/react/24/outline';
 
 const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
-  // Estado para depuración (verificar datos recibidos)
-  const [debug, setDebug] = useState({
-    systemInfoEmpty: Object.keys(systemInfo || {}).length === 0,
-    hardwareInfoEmpty: Object.keys(hardwareInfo || {}).length === 0
-  });
-
-  // Actualizar estado de depuración cuando cambien las props
-  useEffect(() => {
-    console.log("SystemInfoPanel recibió systemInfo:", systemInfo);
-    console.log("SystemInfoPanel recibió hardwareInfo:", hardwareInfo);
-    
-    setDebug({
-      systemInfoEmpty: Object.keys(systemInfo || {}).length === 0,
-      hardwareInfoEmpty: Object.keys(hardwareInfo || {}).length === 0
-    });
-  }, [systemInfo, hardwareInfo]);
-
   // Función para formatear valores nulos o undefined
   const formatValue = (value, fallback = 'No disponible') => {
     return value && value !== 'N/A' ? value : fallback;
+  };
+
+  // Función para manejar diferentes formatos de case (camelCase vs PascalCase)
+  const getValueCaseInsensitive = (obj, key) => {
+    if (!obj) return null;
+    
+    // Intentar con la clave original
+    if (obj[key] !== undefined) return obj[key];
+    
+    // Intentar con la primera letra en minúscula (camelCase)
+    const camelKey = key.charAt(0).toLowerCase() + key.slice(1);
+    if (obj[camelKey] !== undefined) return obj[camelKey];
+    
+    // Intentar con la primera letra en mayúscula (PascalCase)
+    const pascalKey = key.charAt(0).toUpperCase() + key.slice(1);
+    if (obj[pascalKey] !== undefined) return obj[pascalKey];
+    
+    return null;
   };
 
   // Sección de información reutilizable
@@ -64,8 +65,14 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
     );
   };
 
+  // Registrar info recibida para depuración
+  useEffect(() => {
+    console.log("SystemInfoPanel recibió systemInfo:", systemInfo);
+    console.log("SystemInfoPanel recibió hardwareInfo:", hardwareInfo);
+  }, [systemInfo, hardwareInfo]);
+
   // Si no hay datos, mostrar mensaje indicativo
-  if (debug.systemInfoEmpty && debug.hardwareInfoEmpty) {
+  if (Object.keys(systemInfo).length === 0 && Object.keys(hardwareInfo).length === 0) {
     return (
       <div className="bg-gray-50 p-6 text-center rounded-md">
         <p className="text-gray-500">No hay información del sistema disponible</p>
@@ -82,39 +89,39 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
         items={[
           { 
             label: 'Versión de Windows', 
-            value: formatValue(systemInfo?.windowsVersion) 
+            value: formatValue(getValueCaseInsensitive(systemInfo, 'windowsVersion')) 
           },
           { 
             label: 'Versión de DirectX', 
-            value: formatValue(systemInfo?.directXVersion) 
+            value: formatValue(getValueCaseInsensitive(systemInfo, 'directXVersion')) 
           },
           { 
             label: 'Versión de Framework', 
-            value: formatValue(systemInfo?.frameworkVersion) 
+            value: formatValue(getValueCaseInsensitive(systemInfo, 'frameworkVersion')) 
           },
           { 
             label: 'Resolución de Pantalla', 
-            value: formatValue(systemInfo?.screenResolution) 
+            value: formatValue(getValueCaseInsensitive(systemInfo, 'screenResolution')) 
           },
           { 
             label: 'Usuario de Windows', 
-            value: formatValue(systemInfo?.windowsUsername) 
+            value: formatValue(getValueCaseInsensitive(systemInfo, 'windowsUsername')) 
           },
           { 
             label: 'Nombre del Equipo', 
-            value: formatValue(systemInfo?.computerName) 
+            value: formatValue(getValueCaseInsensitive(systemInfo, 'computerName')) 
           },
           { 
             label: 'Tipo de Firmware', 
-            value: formatValue(systemInfo?.firmwareType) 
+            value: formatValue(getValueCaseInsensitive(systemInfo, 'firmwareType')) 
           },
           { 
             label: 'Zona Horaria', 
-            value: formatValue(systemInfo?.timeZone) 
+            value: formatValue(getValueCaseInsensitive(systemInfo, 'timeZone')) 
           },
           { 
             label: 'Fecha de Instalación', 
-            value: formatValue(systemInfo?.windowsInstallDate) 
+            value: formatValue(getValueCaseInsensitive(systemInfo, 'windowsInstallDate')) 
           }
         ]}
       />
@@ -126,31 +133,31 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
         items={[
           { 
             label: 'Procesador', 
-            value: formatValue(hardwareInfo?.cpu) 
+            value: formatValue(getValueCaseInsensitive(hardwareInfo, 'cpu')) 
           },
           { 
             label: 'Tarjeta Gráfica', 
-            value: formatValue(hardwareInfo?.gpu) 
+            value: formatValue(getValueCaseInsensitive(hardwareInfo, 'gpu')) 
           },
           { 
             label: 'Memoria RAM', 
-            value: formatValue(hardwareInfo?.ram) 
+            value: formatValue(getValueCaseInsensitive(hardwareInfo, 'ram')) 
           },
           { 
             label: 'Placa Madre', 
-            value: formatValue(hardwareInfo?.motherboard) 
+            value: formatValue(getValueCaseInsensitive(hardwareInfo, 'motherboard')) 
           },
           { 
             label: 'Almacenamiento', 
-            value: formatValue(hardwareInfo?.storage) 
+            value: formatValue(getValueCaseInsensitive(hardwareInfo, 'storage')) 
           },
           { 
             label: 'Adaptadores de Red', 
-            value: formatValue(hardwareInfo?.networkAdapters) 
+            value: formatValue(getValueCaseInsensitive(hardwareInfo, 'networkAdapters')) 
           },
           { 
             label: 'Versión de BIOS', 
-            value: formatValue(hardwareInfo?.biosVersion) 
+            value: formatValue(getValueCaseInsensitive(hardwareInfo, 'biosVersion')) 
           }
         ]}
       />
@@ -162,11 +169,11 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
         items={[
           { 
             label: 'Último Arranque', 
-            value: formatValue(systemInfo?.lastBootTime) 
+            value: formatValue(getValueCaseInsensitive(systemInfo, 'lastBootTime')) 
           },
           { 
             label: 'Zona Horaria', 
-            value: formatValue(systemInfo?.timeZone) 
+            value: formatValue(getValueCaseInsensitive(systemInfo, 'timeZone')) 
           }
         ]}
       />
