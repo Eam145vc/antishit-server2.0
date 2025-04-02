@@ -7,8 +7,10 @@ const User = require('../models/User');
 const socketSetup = (server) => {
   const io = socketIO(server, {
     cors: {
-      origin: '*', // En producción, limitar a dominio específico
-      methods: ['GET', 'POST']
+      origin: ['https://anti5-0-site.onrender.com', 'http://localhost:3000'],
+      methods: ['GET', 'POST'],
+      credentials: true,
+      allowedHeaders: ['Authorization']
     }
   });
 
