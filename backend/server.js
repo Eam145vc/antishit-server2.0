@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const fs = require('fs'); // Añadido para verificar existencia de rutas
 const { connectDB } = require('./config/db');
 const socketSetup = require('./utils/socket');
 
@@ -33,19 +34,35 @@ app.get('/health', (req, res) => {
 
 // Servir archivos estáticos en producción
 if (process.env.NODE_ENV === 'production') {
-  const staticPath = path.join(__dirname, '../frontend/dist');
-  console.log('Serving static files from:', staticPath);
+  // Cambiar esta línea para usar una ruta absoluta o verificar primero si existe
+  const staticPath = path.resolve(__dirname, '../frontend/dist');
   
-  app.use(express.static(staticPath));
-  
-  // Cualquier ruta que no sea /api redirige al index.html
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.resolve(staticPath, 'index.html'));
+  // Verificar si la ruta existe y loggear mensajes útiles
+  try {
+    if (fs.existsSync(staticPath)) {
+      console.log('✅ Ruta de archivos estáticos encontrada:', staticPath);
+      app.use(express.static(staticPath));
+      
+      // Cualquier ruta que no sea /api redirige al index.html
+      app.get('*', (req, res) => {
+        if (!req.path.startsWith('/api')) {
+          res.sendFile(path.join(staticPath, 'index.html'));
+        } else {
+          res.status(404).json({ message: 'Not Found' });
+        }
+      });
     } else {
-      res.status(404).json({ message: 'Not Found' });
+      console.error('❌ No se encontró la ruta de archivos estáticos:', staticPath);
+      console.log('🔍 Intentando servir solo la API');
+      
+      // Si no hay archivos estáticos, al menos responde con un mensaje
+      app.get('/', (req, res) => {
+        res.send('API Anti-Cheat funcionando. La interfaz de usuario no está disponible.');
+      });
     }
-  });
+  } catch (error) {
+    console.error('❌ Error al verificar ruta de archivos estáticos:', error);
+  }
 }
 
 // Manejo de errores mejorado
