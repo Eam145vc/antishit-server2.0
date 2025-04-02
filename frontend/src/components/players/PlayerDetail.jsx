@@ -31,6 +31,7 @@ const PlayerDetail = () => {
   const [monitorData, setMonitorData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState(0);
   
   // Escuchar actualizaciones en tiempo real de monitoreo
   useEffect(() => {
@@ -89,10 +90,12 @@ const PlayerDetail = () => {
           'Authorization': `Bearer ${token}`
         };
         
-        // Obtener información del jugador
+        // =============================================
+        // PASO 1: Obtener los datos del jugador directamente
+        // =============================================
         console.log(`Solicitando datos del jugador: ${apiUrl}/players/${id}`);
         const playerResponse = await axios.get(`${apiUrl}/players/${id}`, { headers });
-        console.log("Respuesta de la API (jugador):", playerResponse.data);
+        console.log("Respuesta completa de la API (jugador):", playerResponse);
         
         const playerData = playerResponse.data;
         
@@ -102,29 +105,51 @@ const PlayerDetail = () => {
         
         setPlayer(playerData);
         
-        // Mostrar los datos originales para depuración
-        console.log("Hardware info inicializado:", playerData.hardwareInfo || {});
-        console.log("SystemInfo inicializado:", playerData.systemInfo || {});
+        // =============================================
+        // PASO 2: Extraer y verificar systemInfo y hardwareInfo del jugador
+        // =============================================
+        console.log("Datos completos del jugador:", playerData);
+        
+        // Intentar acceder a systemInfo directamente desde el jugador
+        const playerSystemInfo = playerData.systemInfo || {};
+        const playerHardwareInfo = playerData.hardwareInfo || {};
+        
+        console.log("SystemInfo del jugador:", playerSystemInfo);
+        console.log("HardwareInfo del jugador:", playerHardwareInfo);
+        
+        // Verificar si los objetos tienen propiedades
+        const hasSystemInfo = Object.keys(playerSystemInfo).length > 0;
+        const hasHardwareInfo = Object.keys(playerHardwareInfo).length > 0;
+        
+        console.log("¿Player tiene systemInfo?", hasSystemInfo);
+        console.log("¿Player tiene hardwareInfo?", hasHardwareInfo);
         
         // Establecer información del sistema y hardware desde los datos del jugador
-        // Asegurarse de que sean objetos válidos incluso si no existen en la respuesta
-        setSystemInfo(playerData.systemInfo || {});
-        setHardwareInfo(playerData.hardwareInfo || {});
+        setSystemInfo(playerSystemInfo);
+        setHardwareInfo(playerHardwareInfo);
         
-        // Obtener dispositivos del jugador
+        // =============================================
+        // PASO 3: Obtener los dispositivos del jugador
+        // =============================================
         const devicesResponse = await axios.get(`${apiUrl}/players/${id}/devices`, { headers });
         setDevices(devicesResponse.data.all || []);
         
-        // Obtener capturas de pantalla
+        // =============================================
+        // PASO 4: Obtener capturas de pantalla
+        // =============================================
         const screenshotsResponse = await axios.get(`${apiUrl}/screenshots/player/${id}?limit=10`, { headers });
         setScreenshots(screenshotsResponse.data);
         
-        // Obtener historial de monitoreo más reciente
+        // =============================================
+        // PASO 5: Obtener historial de monitoreo más reciente
+        // =============================================
         const historyResponse = await axios.get(`${apiUrl}/players/${id}/history?limit=1`, { headers });
-        console.log("Respuesta de historial:", historyResponse.data);
+        console.log("Respuesta de historial completa:", historyResponse);
         
         if (historyResponse.data && historyResponse.data.length > 0) {
           const latestMonitorData = historyResponse.data[0];
+          console.log("Datos más recientes de monitoreo:", latestMonitorData);
+          
           setMonitorData(latestMonitorData);
           
           // Establecer datos de procesos y red
@@ -136,22 +161,8 @@ const PlayerDetail = () => {
             setNetworkData(latestMonitorData.networkConnections);
           }
           
-          // Actualizar información del sistema y hardware si están presentes
-          if (latestMonitorData.systemInfo) {
-            console.log("SystemInfo de monitorData:", latestMonitorData.systemInfo);
-            setSystemInfo(prevInfo => ({
-              ...prevInfo,
-              ...latestMonitorData.systemInfo
-            }));
-          }
-          
-          if (latestMonitorData.hardwareInfo) {
-            console.log("HardwareInfo de monitorData:", latestMonitorData.hardwareInfo);
-            setHardwareInfo(prevInfo => ({
-              ...prevInfo,
-              ...latestMonitorData.hardwareInfo
-            }));
-          }
+          // NOTA: No intentamos usar systemInfo ni hardwareInfo del historial
+          // porque sabemos que no están incluidos en MonitorData
         }
         
         setError(null);
@@ -248,7 +259,10 @@ const PlayerDetail = () => {
       <PlayerDetailHeader player={player} />
       
       {/* Pestañas de información */}
-      <Tab.Group>
+      <Tab.Group
+        selectedIndex={activeTab} 
+        onChange={setActiveTab}
+      >
         <Tab.List className="flex space-x-1 rounded-xl bg-gray-100 p-1">
           <Tab
             className={({ selected }) =>
