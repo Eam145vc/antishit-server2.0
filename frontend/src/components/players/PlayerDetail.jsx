@@ -31,13 +31,6 @@ const PlayerDetail = () => {
   const [monitorData, setMonitorData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState(0);
-  
-  // DEBUG: Imprimir cuando systemInfo o hardwareInfo cambian
-  useEffect(() => {
-    console.log("systemInfo actualizado:", systemInfo);
-    console.log("hardwareInfo actualizado:", hardwareInfo);
-  }, [systemInfo, hardwareInfo]);
   
   // Escuchar actualizaciones en tiempo real de monitoreo
   useEffect(() => {
@@ -53,6 +46,7 @@ const PlayerDetail = () => {
         
         // Actualizar información del sistema de manera segura
         if (data.systemInfo) {
+          console.log("Actualizando systemInfo con:", data.systemInfo);
           setSystemInfo(prevInfo => ({
             ...prevInfo,
             ...data.systemInfo
@@ -61,6 +55,7 @@ const PlayerDetail = () => {
         
         // Actualizar información de hardware si está disponible
         if (data.hardwareInfo) {
+          console.log("Actualizando hardwareInfo con:", data.hardwareInfo);
           setHardwareInfo(prevInfo => ({
             ...prevInfo,
             ...data.hardwareInfo
@@ -107,12 +102,14 @@ const PlayerDetail = () => {
         
         setPlayer(playerData);
         
+        // Mostrar los datos originales para depuración
+        console.log("Hardware info inicializado:", playerData.hardwareInfo || {});
+        console.log("SystemInfo inicializado:", playerData.systemInfo || {});
+        
         // Establecer información del sistema y hardware desde los datos del jugador
         // Asegurarse de que sean objetos válidos incluso si no existen en la respuesta
         setSystemInfo(playerData.systemInfo || {});
         setHardwareInfo(playerData.hardwareInfo || {});
-        
-        console.log("Hardware info inicializado:", playerData.hardwareInfo || {});
         
         // Obtener dispositivos del jugador
         const devicesResponse = await axios.get(`${apiUrl}/players/${id}/devices`, { headers });
@@ -131,19 +128,25 @@ const PlayerDetail = () => {
           setMonitorData(latestMonitorData);
           
           // Establecer datos de procesos y red
-          setProcessData(latestMonitorData.processes || []);
-          setNetworkData(latestMonitorData.networkConnections || []);
+          if (latestMonitorData.processes) {
+            setProcessData(latestMonitorData.processes);
+          }
           
-          // Actualizar información del sistema de manera segura
+          if (latestMonitorData.networkConnections) {
+            setNetworkData(latestMonitorData.networkConnections);
+          }
+          
+          // Actualizar información del sistema y hardware si están presentes
           if (latestMonitorData.systemInfo) {
+            console.log("SystemInfo de monitorData:", latestMonitorData.systemInfo);
             setSystemInfo(prevInfo => ({
               ...prevInfo,
               ...latestMonitorData.systemInfo
             }));
           }
           
-          // También actualizar hardwareInfo si está presente en monitorData
           if (latestMonitorData.hardwareInfo) {
+            console.log("HardwareInfo de monitorData:", latestMonitorData.hardwareInfo);
             setHardwareInfo(prevInfo => ({
               ...prevInfo,
               ...latestMonitorData.hardwareInfo
@@ -245,10 +248,7 @@ const PlayerDetail = () => {
       <PlayerDetailHeader player={player} />
       
       {/* Pestañas de información */}
-      <Tab.Group
-        selectedIndex={activeTab} 
-        onChange={setActiveTab}
-      >
+      <Tab.Group>
         <Tab.List className="flex space-x-1 rounded-xl bg-gray-100 p-1">
           <Tab
             className={({ selected }) =>
