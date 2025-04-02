@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
 
 const ScreenshotDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [screenshot, setScreenshot] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,26 +15,58 @@ const ScreenshotDetail = () => {
     const fetchScreenshot = async () => {
       try {
         setIsLoading(true);
-        // Obtener los metadatos de la captura
-        const response = await axios.get(`/api/screenshots/${id}`);
-        // Obtener la imagen de la captura
-        const imageResponse = await axios.get(`/api/screenshots/${id}/image`);
         
-        setScreenshot({
-          ...response.data,
-          imageData: imageResponse.data.imageData
-        });
-        setError(null);
+        // Usar URL base de la configuración
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+          // Si no hay token, redirigir a login
+          toast.error('Sesión expirada, por favor inicie sesión nuevamente');
+          navigate('/login');
+          return;
+        }
+        
+        const headers = {
+          'Authorization': `Bearer ${token}`
+        };
+        
+        // Obtener los metadatos de la captura
+        try {
+          const response = await axios.get(`${apiUrl}/screenshots/${id}`, { headers });
+          
+          // Obtener la imagen de la captura
+          try {
+            const imageResponse = await axios.get(`${apiUrl}/screenshots/${id}/image`, { headers });
+            
+            setScreenshot({
+              ...response.data,
+              imageData: imageResponse.data.imageData
+            });
+          } catch (imageError) {
+            console.error('Error al cargar imagen:', imageError);
+            setScreenshot(response.data);
+          }
+          
+        } catch (error) {
+          console.error('Error al cargar captura de pantalla:', error);
+          if (error.response?.status === 404) {
+            setError('Captura de pantalla no encontrada');
+          } else {
+            setError('Error al cargar la captura de pantalla');
+          }
+        }
+        
       } catch (err) {
+        console.error('Error general:', err);
         setError('Error al cargar la captura de pantalla');
-        console.error(err);
       } finally {
         setIsLoading(false);
       }
     };
     
     fetchScreenshot();
-  }, [id]);
+  }, [id, navigate]);
   
   if (isLoading) {
     return (
@@ -45,7 +79,7 @@ const ScreenshotDetail = () => {
     );
   }
   
-  if (error || !screenshot) {
+  if (error) {
     return (
       <div className="rounded-md bg-danger-50 p-4">
         <div className="flex">
@@ -57,9 +91,53 @@ const ScreenshotDetail = () => {
           </div>
           <div className="ml-3">
             <h3 className="text-sm font-medium text-danger-800">
-              Error al cargar la captura de pantalla
+              {error}
             </h3>
-            <div className="mt-2 text-sm text-danger-700">{error}</div>
+            <div className="mt-4 flex">
+              <button
+                type="button"
+                className="rounded-md bg-danger-50 px-2 py-1.5 text-sm font-medium text-danger-800 hover:bg-danger-100 mr-3"
+                onClick={() => navigate('/screenshots')}
+              >
+                Volver a capturas
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-danger-50 px-2 py-1.5 text-sm font-medium text-danger-800 hover:bg-danger-100"
+                onClick={() => window.location.reload()}
+              >
+                Reintentar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!screenshot) {
+    return (
+      <div className="rounded-md bg-warning-50 p-4">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <ExclamationTriangleIcon 
+              className="h-5 w-5 text-warning-400" 
+              aria-hidden="true" 
+            />
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-warning-800">
+              No se encontró la captura de pantalla
+            </h3>
+            <div className="mt-2">
+              <button
+                type="button"
+                className="rounded-md bg-warning-50 px-2 py-1.5 text-sm font-medium text-warning-800 hover:bg-warning-100"
+                onClick={() => navigate('/screenshots')}
+              >
+                Volver a la galería de capturas
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -78,12 +156,16 @@ const ScreenshotDetail = () => {
       {/* Imagen */}
       <div className="card overflow-hidden">
         <div className="card-body p-0">
-          {screenshot.imageData && (
+          {screenshot.imageData ? (
             <img 
               src={`data:image/png;base64,${screenshot.imageData}`} 
               alt={`Captura de ${screenshot.activisionId}`}
               className="w-full"
             />
+          ) : (
+            <div className="flex h-64 items-center justify-center bg-gray-100">
+              <p className="text-gray-500">No hay imagen disponible</p>
+            </div>
           )}
         </div>
       </div>
