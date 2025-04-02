@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, Routes, Route } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Dashboard from './components/dashboard/Dashboard';
 import Login from './components/auth/Login';
@@ -42,99 +42,102 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   return children;
 };
 
-// Definición de rutas de la aplicación
-const routes = [
-  { path: '/', element: <Navigate to="/dashboard" /> },
-  { path: '/login', element: <Login /> },
-  {
-    path: '/dashboard',
-    element: (
-      <ProtectedRoute>
-        <Dashboard />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/profile',
-    element: (
-      <ProtectedRoute>
-        <Profile />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/players',
-    element: (
-      <ProtectedRoute>
-        <PlayerList />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/players/:id',
-    element: (
-      <ProtectedRoute>
-        <PlayerDetail />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/devices',
-    element: (
-      <ProtectedRoute>
-        <DeviceList />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/devices/:id',
-    element: (
-      <ProtectedRoute>
-        <DeviceDetail />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/screenshots',
-    element: (
-      <ProtectedRoute>
-        <ScreenshotGallery />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/live-monitor',
-    element: (
-      <ProtectedRoute>
-        <LiveMonitor />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/live-monitor/:channelId',
-    element: (
-      <ProtectedRoute>
-        <LiveMonitor />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/alerts',
-    element: (
-      <ProtectedRoute>
-        <Alerts />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/admin/users',
-    element: (
-      <ProtectedRoute adminOnly={true}>
-        <UserManagement />
-      </ProtectedRoute>
-    ),
-  },
-  { path: '*', element: <NotFound /> },
-];
+const AppRoutes = () => {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/dashboard" />} />
+      <Route path="/login" element={<Login />} />
+      <Route 
+        path="/dashboard" 
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/profile" 
+        element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/players" 
+        element={
+          <ProtectedRoute>
+            <PlayerList />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/players/:id" 
+        element={
+          <ProtectedRoute>
+            <PlayerDetail />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/devices" 
+        element={
+          <ProtectedRoute>
+            <DeviceList />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/devices/:id" 
+        element={
+          <ProtectedRoute>
+            <DeviceDetail />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/screenshots" 
+        element={
+          <ProtectedRoute>
+            <ScreenshotGallery />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/live-monitor" 
+        element={
+          <ProtectedRoute>
+            <LiveMonitor />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/live-monitor/:channelId" 
+        element={
+          <ProtectedRoute>
+            <LiveMonitor />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/alerts" 
+        element={
+          <ProtectedRoute>
+            <Alerts />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/admin/users" 
+        element={
+          <ProtectedRoute adminOnly={true}>
+            <UserManagement />
+          </ProtectedRoute>
+        } 
+      />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
 
-export default routes;
+export default AppRoutes;
