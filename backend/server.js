@@ -32,6 +32,7 @@ app.use('/api/devices', require('./routes/devices'));
 app.use('/api/screenshots', require('./routes/screenshots'));
 app.use('/api/monitor', require('./routes/monitor'));
 app.use('/api/tournaments', require('./routes/tournaments'));
+app.use('/api/alerts', require('./routes/alerts'));
 
 // Middleware para rutas no encontradas
 app.use((req, res) => {
