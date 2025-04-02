@@ -11,12 +11,16 @@ const {
 } = require('../controllers/authController');
 const { protect, admin } = require('../middleware/auth');
 
-// Rutas simplificadas sin wrappers adicionales
+// Ruta de registro sin autenticación para el primer usuario
+router.post('/register', registerUser);
 router.post('/login', loginUser);
-router.post('/register', protect, admin, registerUser);
+
+// Rutas protegidas
 router.get('/profile', protect, getUserProfile);
 router.put('/profile', protect, updateUserProfile);
 router.put('/password', protect, changePassword);
+
+// Rutas de administración
 router.get('/users', protect, admin, getUsers);
 router.delete('/users/:id', protect, admin, deleteUser);
 
