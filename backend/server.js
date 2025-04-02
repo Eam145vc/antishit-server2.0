@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
-const fs = require('fs'); // Añadido para verificar existencia de rutas
+const fs = require('fs');
 const { connectDB } = require('./config/db');
 const socketSetup = require('./utils/socket');
 
@@ -19,7 +19,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('dev'));
 
-// Rutas de la API
+// PRIMERO: Rutas de la API
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/players', require('./routes/players'));
 app.use('/api/devices', require('./routes/devices'));
@@ -27,12 +27,17 @@ app.use('/api/screenshots', require('./routes/screenshots'));
 app.use('/api/monitor', require('./routes/monitor'));
 app.use('/api/tournaments', require('./routes/tournaments'));
 
-// Ruta de estado para Render
+// SEGUNDO: Manejador específico para 404 en rutas de API
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ message: 'API route not found' });
+});
+
+// TERCERO: Ruta de estado para Render
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Servir archivos estáticos en producción
+// CUARTO: Servir archivos estáticos en producción
 if (process.env.NODE_ENV === 'production') {
   // Cambiar esta línea para usar una ruta absoluta o verificar primero si existe
   const staticPath = path.resolve(__dirname, '../frontend/dist');
@@ -47,8 +52,6 @@ if (process.env.NODE_ENV === 'production') {
       app.get('*', (req, res) => {
         if (!req.path.startsWith('/api')) {
           res.sendFile(path.join(staticPath, 'index.html'));
-        } else {
-          res.status(404).json({ message: 'Not Found' });
         }
       });
     } else {
