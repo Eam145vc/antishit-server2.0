@@ -10,6 +10,9 @@ export const SocketProvider = ({ children }) => {
   const [connected, setConnected] = useState(false);
   const { user, isAuthenticated } = useAuth();
   
+  // URL de conexión del socket - usa la URL base del backend, no la del frontend
+  const SOCKET_URL = 'https://anti5-0.onrender.com';
+  
   useEffect(() => {
     if (!isAuthenticated || !user) {
       if (socket) {
@@ -25,7 +28,7 @@ export const SocketProvider = ({ children }) => {
     
     if (!token) return;
     
-    const socketIo = io('https://anti5-0.onrender.com', {
+    const socketIo = io(SOCKET_URL, {
       path: '/socket.io',
       auth: {
         token
@@ -40,6 +43,11 @@ export const SocketProvider = ({ children }) => {
     socketIo.on('disconnect', () => {
       setConnected(false);
       console.log('Socket desconectado');
+    });
+    
+    socketIo.on('connect_error', (error) => {
+      console.error('Error de conexión del socket:', error);
+      toast.error('Error de conexión en tiempo real');
     });
     
     socketIo.on('error', (error) => {
