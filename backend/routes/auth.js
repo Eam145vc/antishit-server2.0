@@ -11,7 +11,7 @@ const {
 } = require('../controllers/authController');
 const { protect, admin } = require('../middleware/auth');
 
-// Ruta de registro sin autenticación para el primer usuario
+// Rutas públicas
 router.post('/register', registerUser);
 router.post('/login', loginUser);
 
