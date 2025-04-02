@@ -1,4 +1,3 @@
-// src/components/players/ProcessList.jsx
 import { useState } from 'react';
 import { CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 
@@ -12,12 +11,12 @@ const ProcessList = ({ processes }) => {
   const sortProcesses = (a, b) => {
     if (sortField === 'name') {
       return sortDirection === 'asc' 
-        ? a.name.localeCompare(b.name)
-        : b.name.localeCompare(a.name);
+        ? (a.name || '').localeCompare(b.name || '')
+        : (b.name || '').localeCompare(a.name || '');
     } else if (sortField === 'memoryUsage') {
-      return sortDirection === 'asc'
-        ? a.memoryUsage - b.memoryUsage
-        : b.memoryUsage - a.memoryUsage;
+      const memA = a.memoryUsage || 0;
+      const memB = b.memoryUsage || 0;
+      return sortDirection === 'asc' ? memA - memB : memB - memA;
     } else if (sortField === 'startTime') {
       const dateA = a.startTime ? new Date(a.startTime) : new Date(0);
       const dateB = b.startTime ? new Date(b.startTime) : new Date(0);
@@ -36,20 +35,23 @@ const ProcessList = ({ processes }) => {
     }
   };
   
+  // Verificar si hay procesos
+  const hasProcesses = Array.isArray(processes) && processes.length > 0;
+  
   // Filtrar procesos
-  const filteredProcesses = processes.filter(
+  const filteredProcesses = hasProcesses ? processes.filter(
     (process) => {
       // Filtro por búsqueda
       const matchesSearch = !searchTerm || 
-        process.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        process.filePath?.toLowerCase().includes(searchTerm.toLowerCase());
+        (process.name && process.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (process.filePath && process.filePath.toLowerCase().includes(searchTerm.toLowerCase()));
       
       // Filtro por sospechosos
       const matchesSuspicious = !showSuspiciousOnly || process.suspicious || !process.isSigned;
       
       return matchesSearch && matchesSuspicious;
     }
-  ).sort(sortProcesses);
+  ).sort(sortProcesses) : [];
   
   // Formatear tamaño en MB
   const formatMemorySize = (bytes) => {
@@ -58,7 +60,7 @@ const ProcessList = ({ processes }) => {
     return `${mb.toFixed(2)} MB`;
   };
   
-  if (!processes || processes.length === 0) {
+  if (!hasProcesses) {
     return (
       <div className="rounded-md bg-gray-50 p-6 text-center">
         <p className="text-gray-500">No hay información de procesos disponible</p>
@@ -161,34 +163,42 @@ const ProcessList = ({ processes }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 bg-white">
-            {filteredProcesses.map((process, index) => (
-              <tr key={process.pid || index}>
-                <td className="whitespace-nowrap px-6 py-4">
-                  <div className="text-sm font-medium text-gray-900">
-                    {process.name}
-                  </div>
-                  {process.filePath && (
-                    <div className="text-xs text-gray-500">{process.filePath}</div>
-                  )}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                  {formatMemorySize(process.memoryUsage)}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                  {process.startTime || 'N/A'}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4">
-                  {process.isSigned ? (
-                    <CheckCircleIcon className="h-5 w-5 text-success-500" />
-                  ) : (
-                    <ExclamationTriangleIcon className="h-5 w-5 text-warning-500" />
-                  )}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                  {process.pid}
+            {filteredProcesses.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">
+                  No hay procesos que coincidan con los filtros
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredProcesses.map((process, index) => (
+                <tr key={process.pid || index}>
+                  <td className="whitespace-nowrap px-6 py-4">
+                    <div className="text-sm font-medium text-gray-900">
+                      {process.name || 'Desconocido'}
+                    </div>
+                    {process.filePath && (
+                      <div className="text-xs text-gray-500">{process.filePath}</div>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                    {formatMemorySize(process.memoryUsage)}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                    {process.startTime || 'N/A'}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4">
+                    {process.isSigned ? (
+                      <CheckCircleIcon className="h-5 w-5 text-success-500" />
+                    ) : (
+                      <ExclamationTriangleIcon className="h-5 w-5 text-warning-500" />
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                    {process.pid || 'N/A'}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
