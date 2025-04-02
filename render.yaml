@@ -2,10 +2,12 @@ services:
   - type: web
     name: anti5-0
     env: node
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /
+    healthCheckTimeout: 60
+    autoDeploy: false
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
