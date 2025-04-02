@@ -7,3 +7,4 @@ const generateToken = (id) => {
 };
 
 module.exports = { generateToken };
+console.log('[DEBUG] JWT_SECRET usado:', process.env.JWT_SECRET);
