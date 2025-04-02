@@ -4,6 +4,8 @@ import toast from 'react-hot-toast';
 // Get API URL from environment, with explicit fallback
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://anti5-0.onrender.com/api';
 
+console.log('[DEBUG] API Base URL:', API_BASE_URL);
+
 // Create axios instance with base configuration
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -17,27 +19,50 @@ const api = axios.create({
 // Interceptor para agregar token de autorización
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
+  console.log('[DEBUG] Request config:', {
+    url: config.url,
+    method: config.method,
+    token: token ? 'Token present' : 'No token'
+  });
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 }, (error) => {
+  console.error('[DEBUG] Request error:', error);
   return Promise.reject(error);
 });
 
 // Interceptor de respuesta global
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('[DEBUG] Response:', {
+      url: response.config.url,
+      method: response.config.method,
+      status: response.status,
+      data: response.data
+    });
+    return response;
+  },
   (error) => {
     // Manejar errores de red
     if (error.message === 'Network Error') {
+      console.error('[ERROR] Network Error:', error);
       toast.error('Error de conexión. Verifique su red.');
       return Promise.reject(error);
     }
 
     // Manejar respuestas de error del servidor
     if (error.response) {
-      const { status, data } = error.response;
+      const { status, data, config } = error.response;
+
+      console.error('[ERROR] Response Error:', {
+        url: config.url,
+        method: config.method,
+        status,
+        data
+      });
 
       switch (status) {
         case 400:
@@ -63,9 +88,11 @@ api.interceptors.response.use(
       }
     } else if (error.request) {
       // La solicitud fue hecha pero no se recibió respuesta
+      console.error('[ERROR] No response:', error.request);
       toast.error('No se recibió respuesta del servidor');
     } else {
       // Algo sucedió al configurar la solicitud
+      console.error('[ERROR] Request setup error:', error.message);
       toast.error('Error al configurar la solicitud');
     }
 
