@@ -3,23 +3,23 @@ const User = require('../models/User');
 
 // Middleware para proteger rutas
 const protect = async (req, res, next) => {
-  let token;
+  console.log('[DEBUG] Authorization Header:', req.headers.authorization);
 
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
-      // Obtener token del header
-      token = req.headers.authorization.split(' ')[1];
+      const token = req.headers.authorization.split(' ')[1];
+      console.log('[DEBUG] Token recibido:', token);
 
       // Verificar token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      console.log('[DEBUG] Token decodificado:', decoded);
 
-      // Obtener usuario del token sin la contraseña
+      // Buscar usuario en la base de datos
       req.user = await User.findById(decoded.id).select('-password');
+      console.log('[DEBUG] Usuario autenticado:', req.user ? req.user.email : 'No encontrado');
 
       if (!req.user) {
+        console.log('[ERROR] Usuario no encontrado con el token proporcionado.');
         return res.status(401).json({ message: 'No autorizado, usuario no encontrado' });
       }
 
@@ -36,6 +36,7 @@ const protect = async (req, res, next) => {
       }
     }
   } else {
+    console.log('[DEBUG] No se encontró token en la petición.');
     return res.status(401).json({ message: 'No autorizado, no hay token' });
   }
 };
