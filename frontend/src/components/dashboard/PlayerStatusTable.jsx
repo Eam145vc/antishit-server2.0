@@ -54,61 +54,78 @@ const PlayerStatusTable = ({ players }) => {
               </td>
             </tr>
           ) : (
-            players.map((player) => (
-              <tr key={player._id}>
-                <td className="whitespace-nowrap px-6 py-4">
-                  <div className="flex items-center">
-                    <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
-                    <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900">
-                        <Link to={`/players/${player._id}`} className="hover:text-primary-600">
-                          {player.activisionId}
-                        </Link>
+            players.map((player) => {
+              // Verificar si el jugador realmente está conectado
+              // Consideramos desconectado si:
+              // 1. isOnline es false explícitamente
+              // 2. Última actividad hace más de 5 minutos
+              const lastSeenDate = new Date(player.lastSeen);
+              const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+              const isReallyOnline = player.isOnline && lastSeenDate > fiveMinutesAgo;
+              
+              return (
+                <tr key={player._id}>
+                  <td className="whitespace-nowrap px-6 py-4">
+                    <div className="flex items-center">
+                      <div className={`h-2.5 w-2.5 rounded-full ${isReallyOnline ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                      <div className="ml-4">
+                        <div className="text-sm font-medium text-gray-900">
+                          <Link to={`/players/${player._id}`} className="hover:text-primary-600">
+                            {player.activisionId}
+                          </Link>
+                        </div>
+                        {player.nickname && (
+                          <div className="text-xs text-gray-500">{player.nickname}</div>
+                        )}
                       </div>
-                      {player.nickname && (
-                        <div className="text-xs text-gray-500">{player.nickname}</div>
-                      )}
                     </div>
-                  </div>
-                </td>
-                <td className="whitespace-nowrap px-6 py-4">
-                  <span
-                    className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                      player.isGameRunning
-                        ? 'bg-success-100 text-success-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {player.isGameRunning ? 'Jugando' : 'Conectado'}
-                  </span>
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                  Canal {player.currentChannelId}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                  {player.lastSeen
-                    ? formatDistanceToNow(new Date(player.lastSeen), {
-                        addSuffix: true,
-                        locale: es
-                      })
-                    : 'N/A'}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                  <button
-                    onClick={() => 
-                      handleRequestScreenshot(
-                        player._id, 
-                        player.activisionId, 
-                        player.currentChannelId
-                      )
-                    }
-                    className="text-primary-600 hover:text-primary-900"
-                  >
-                    Capturar
-                  </button>
-                </td>
-              </tr>
-            ))
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4">
+                    <span
+                      className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
+                        !isReallyOnline
+                          ? 'bg-gray-100 text-gray-800'
+                          : player.isGameRunning
+                          ? 'bg-success-100 text-success-800'
+                          : 'bg-warning-100 text-warning-800'
+                      }`}
+                    >
+                      {!isReallyOnline
+                        ? 'Desconectado'
+                        : player.isGameRunning
+                        ? 'Jugando'
+                        : 'Conectado'}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                    Canal {player.currentChannelId}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                    {player.lastSeen
+                      ? formatDistanceToNow(new Date(player.lastSeen), {
+                          addSuffix: true,
+                          locale: es
+                        })
+                      : 'N/A'}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+                    <button
+                      onClick={() => 
+                        handleRequestScreenshot(
+                          player._id, 
+                          player.activisionId, 
+                          player.currentChannelId
+                        )
+                      }
+                      disabled={!isReallyOnline}
+                      className={`${isReallyOnline ? 'text-primary-600 hover:text-primary-900' : 'text-gray-400 cursor-not-allowed'}`}
+                    >
+                      Capturar
+                    </button>
+                  </td>
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>
