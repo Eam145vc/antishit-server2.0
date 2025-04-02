@@ -7,6 +7,7 @@ import PlayerDetail from './components/players/PlayerDetail';
 import DeviceList from './components/devices/DeviceList';
 import DeviceDetail from './components/devices/DeviceDetail';
 import ScreenshotGallery from './components/screenshots/ScreenshotGallery';
+import ScreenshotDetail from './components/screenshots/ScreenshotDetail';
 import LiveMonitor from './components/monitor/LiveMonitor';
 import Alerts from './components/alerts/Alerts';
 import NotFound from './components/layout/NotFound';
@@ -88,6 +89,14 @@ const AppRoutes = () => {
         } 
       />
       <Route 
+        path="/devices/by-type/:type" 
+        element={
+          <ProtectedRoute>
+            <DeviceList />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
         path="/devices/:id" 
         element={
           <ProtectedRoute>
@@ -100,6 +109,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <ScreenshotGallery />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/screenshots/:id" 
+        element={
+          <ProtectedRoute>
+            <ScreenshotDetail />
           </ProtectedRoute>
         } 
       />
@@ -135,6 +152,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         } 
       />
+      {/* Ruta para capturar todas las rutas no definidas */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
