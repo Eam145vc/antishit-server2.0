@@ -6,6 +6,60 @@ const Screenshot = require('../models/Screenshot'); // Añadido
 const { emitMonitorData, emitAlert } = require('../utils/socket');
 const { trackHWID } = require('../utils/hwid');
 
+// Tiempo máximo de inactividad antes de marcar a un jugador como desconectado (5 minutos en ms)
+const INACTIVE_THRESHOLD = 5 * 60 * 1000;
+
+// Configuración para la verificación automática de jugadores inactivos
+function setupDisconnectionCheck() {
+  console.log('Configurando verificación automática de desconexiones');
+  
+  // Comprueba cada 1 minuto los jugadores inactivos
+  setInterval(async () => {
+    const cutoffTime = new Date(Date.now() - INACTIVE_THRESHOLD);
+    
+    try {
+      // Busca jugadores marcados como conectados pero que no han enviado datos recientemente
+      const inactivePlayers = await Player.find({
+        isOnline: true,
+        lastSeen: { $lt: cutoffTime }
+      });
+      
+      console.log(`Marcando ${inactivePlayers.length} jugadores como desconectados por inactividad`);
+      
+      // Marcar cada jugador como desconectado
+      for (const player of inactivePlayers) {
+        player.isOnline = false;
+        player.isGameRunning = false;
+        await player.save();
+        
+        // Emitir evento de desconexión a través de socket.io
+        emitMonitorData({
+          _id: player._id,
+          activisionId: player.activisionId,
+          channelId: player.currentChannelId,
+          isOnline: false,
+          isGameRunning: false,
+          lastSeen: new Date(),
+          statusChanged: true
+        });
+        
+        // Emitir alerta de desconexión
+        emitAlert({
+          type: 'player-disconnected',
+          playerId: player._id,
+          activisionId: player.activisionId,
+          channelId: player.currentChannelId,
+          message: `Jugador desconectado automáticamente: ${player.activisionId} (inactividad)`,
+          severity: 'info',
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error al verificar jugadores inactivos:', error);
+    }
+  }, 60000); // Ejecutar cada 1 minuto
+}
+
 // @desc    Guardar datos de monitoreo desde cliente
 // @route   POST /api/monitor
 // @access  Público (desde cliente anti-cheat)
@@ -505,5 +559,6 @@ const reportClientError = async (req, res) => {
     reportClientError,
     markPlayerDisconnected,
     getMonitoringStats,
-    getMonitorDataById
+    getMonitorDataById,
+    setupDisconnectionCheck
   };
