@@ -1,4 +1,3 @@
-// src/components/dashboard/RecentAlertsList.jsx
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -62,6 +61,11 @@ const RecentAlertsList = ({ alerts }) => {
                 >
                   {alert.activisionId}
                 </Link>
+              </div>
+            )}
+            {alert.channelId !== undefined && (
+              <div className="mt-1 text-xs text-gray-500">
+                Canal: {alert.channelId}
               </div>
             )}
             <div className="mt-1 text-xs text-gray-500">
