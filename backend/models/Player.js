@@ -35,8 +35,12 @@ const playerSchema = mongoose.Schema({
     screenResolution: String,
     windowsUsername: String,
     computerName: String,
+    windowsInstallDate: String,
+    lastBootTime: String,
     firmwareType: String,
-    timeZone: String
+    languageSettings: String,
+    timeZone: String,
+    frameworkVersion: String
   },
   hardwareInfo: {
     cpu: String,
