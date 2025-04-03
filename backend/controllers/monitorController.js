@@ -37,6 +37,49 @@ const sanitizeUsbDevices = (devices) => {
   }).filter(device => device.deviceId); // Eliminar entradas sin deviceId
 };
 
+// Función para sanear y normalizar datos de System Info
+const sanitizeSystemInfo = (systemInfo) => {
+  if (!systemInfo || typeof systemInfo !== 'object') {
+    console.warn('Invalid systemInfo data. Expected an object.');
+    return {};
+  }
+
+  return {
+    windowsVersion: systemInfo.WindowsVersion || systemInfo.windowsVersion,
+    directXVersion: systemInfo.DirectXVersion || systemInfo.directXVersion,
+    gpuDriverVersion: systemInfo.GpuDriverVersion || systemInfo.gpuDriverVersion,
+    screenResolution: systemInfo.ScreenResolution || systemInfo.screenResolution,
+    windowsUsername: systemInfo.WindowsUsername || systemInfo.windowsUsername,
+    computerName: systemInfo.ComputerName || systemInfo.computerName,
+    windowsInstallDate: systemInfo.WindowsInstallDate || systemInfo.windowsInstallDate,
+    lastBootTime: systemInfo.LastBootTime || systemInfo.lastBootTime,
+    firmwareType: systemInfo.FirmwareType || systemInfo.firmwareType,
+    languageSettings: systemInfo.LanguageSettings || systemInfo.languageSettings,
+    timeZone: systemInfo.TimeZone || systemInfo.timeZone,
+    frameworkVersion: systemInfo.FrameworkVersion || systemInfo.frameworkVersion
+  };
+};
+
+// Función para sanear y normalizar datos de Hardware Info
+const sanitizeHardwareInfo = (hardwareInfo) => {
+  if (!hardwareInfo || typeof hardwareInfo !== 'object') {
+    console.warn('Invalid hardwareInfo data. Expected an object.');
+    return {};
+  }
+
+  return {
+    cpu: hardwareInfo.Cpu || hardwareInfo.cpu,
+    gpu: hardwareInfo.Gpu || hardwareInfo.gpu,
+    ram: hardwareInfo.Ram || hardwareInfo.ram,
+    motherboard: hardwareInfo.Motherboard || hardwareInfo.motherboard,
+    storage: hardwareInfo.Storage || hardwareInfo.storage,
+    networkAdapters: hardwareInfo.NetworkAdapters || hardwareInfo.networkAdapters,
+    audioDevices: hardwareInfo.AudioDevices || hardwareInfo.audioDevices,
+    biosVersion: hardwareInfo.BiosVersion || hardwareInfo.biosVersion,
+    hardwareId: hardwareInfo.HardwareId || hardwareInfo.hardwareId
+  };
+};
+
 // Configuración para la verificación automática de desconexiones
 function setupDisconnectionCheck() {
   console.log('Configurando verificación automática de desconexiones');
@@ -108,6 +151,13 @@ const saveMonitorData = async (req, res) => {
       loadedDrivers
     } = req.body;
     
+    // Log de datos recibidos para depuración
+    console.log('Datos recibidos:');
+    console.log('- activisionId:', activisionId);
+    console.log('- channelId:', channelId);
+    console.log('- systemInfo presente:', !!systemInfo);
+    console.log('- hardwareInfo presente:', !!hardwareInfo);
+    
     // Verificar campos obligatorios
     if (!activisionId || !channelId) {
       return res.status(400).json({ message: 'Faltan campos obligatorios' });
@@ -115,6 +165,13 @@ const saveMonitorData = async (req, res) => {
     
     // Sanear datos de dispositivos USB
     const sanitizedUsbDevices = sanitizeUsbDevices(usbDevices);
+    
+    // Sanear datos de System Info y Hardware Info
+    const sanitizedSystemInfo = sanitizeSystemInfo(systemInfo);
+    const sanitizedHardwareInfo = sanitizeHardwareInfo(hardwareInfo);
+    
+    console.log('SystemInfo procesado:', sanitizedSystemInfo);
+    console.log('HardwareInfo procesado:', sanitizedHardwareInfo);
     
     // Buscar o crear jugador
     let player = await Player.findOne({ activisionId });
@@ -131,8 +188,8 @@ const saveMonitorData = async (req, res) => {
         lastSeen: timestamp || new Date(),
         clientStartTime: clientStartTime || new Date(),
         pcStartTime: pcStartTime || '',
-        systemInfo: systemInfo || {},
-        hardwareInfo: hardwareInfo || {}
+        systemInfo: sanitizedSystemInfo || {},
+        hardwareInfo: sanitizedHardwareInfo || {}
       });
       isNewPlayer = true;
       statusChanged = true;
@@ -160,7 +217,7 @@ const saveMonitorData = async (req, res) => {
       if (systemInfo) {
         player.systemInfo = {
           ...player.systemInfo,
-          ...systemInfo
+          ...sanitizedSystemInfo
         };
       }
       
@@ -168,7 +225,7 @@ const saveMonitorData = async (req, res) => {
       if (hardwareInfo) {
         player.hardwareInfo = {
           ...player.hardwareInfo,
-          ...hardwareInfo
+          ...sanitizedHardwareInfo
         };
       }
       
