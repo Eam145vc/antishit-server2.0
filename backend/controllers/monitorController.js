@@ -1,4 +1,5 @@
 // Path: backend/controllers/monitorController.js
+
 const mongoose = require('mongoose');
 const Player = require('../models/Player');
 const Device = require('../models/Device');
@@ -151,18 +152,101 @@ const saveMonitorData = async (req, res) => {
       loadedDrivers
     } = req.body;
     
+    // Crear un timestamp para seguimiento
+    const requestTimestamp = new Date().toISOString();
+    
     // Log de datos recibidos para depuración
-    console.log('Datos recibidos:');
-    console.log('- activisionId:', activisionId);
-    console.log('- channelId:', channelId);
-    console.log('- processes presente:', Array.isArray(processes) ? processes.length : 'No es un array');
-    console.log('- systemInfo presente:', !!systemInfo);
-    console.log('- hardwareInfo presente:', !!hardwareInfo);
+    console.log(`[${requestTimestamp}] Datos recibidos de ${activisionId}:`);
+    console.log(`[${requestTimestamp}] - channelId: ${channelId}`);
+    console.log(`[${requestTimestamp}] - isGameRunning: ${isGameRunning}`);
+    
+    // Log específico de procesos para identificar problemas
+    if (!processes) {
+      console.log(`[${requestTimestamp}] - processes: UNDEFINED`);
+    } else if (!Array.isArray(processes)) {
+      console.log(`[${requestTimestamp}] - processes: NO ES UN ARRAY, es tipo ${typeof processes}`);
+      if (typeof processes === 'object') {
+        console.log(`[${requestTimestamp}] - Claves del objeto processes: ${Object.keys(processes)}`);
+      }
+    } else {
+      console.log(`[${requestTimestamp}] - processes: ${processes.length} procesos`);
+      
+      // Log de una muestra de procesos para verificar estructura
+      if (processes.length > 0) {
+        console.log(`[${requestTimestamp}] - Muestra del primer proceso:`);
+        console.log(JSON.stringify(processes[0], null, 2));
+      }
+    }
+    
+    console.log(`[${requestTimestamp}] - systemInfo presente: ${systemInfo ? 'SÍ' : 'NO'}`);
+    console.log(`[${requestTimestamp}] - hardwareInfo presente: ${hardwareInfo ? 'SÍ' : 'NO'}`);
     
     // Verificar campos obligatorios
     if (!activisionId || !channelId) {
-      return res.status(400).json({ message: 'Faltan campos obligatorios' });
+      console.log(`[${requestTimestamp}] ERROR: Faltan campos obligatorios`);
+      return res.status(400).json({ 
+        message: 'Faltan campos obligatorios',
+        timestamp: requestTimestamp 
+      });
     }
+    
+    // Asegurar que processes es un array válido incluso si está mal formado
+    let validProcesses = [];
+    if (Array.isArray(processes)) {
+      // Es un array, usarlo directamente pero verificar cada elemento
+      validProcesses = processes.map(proc => {
+        // Asegurar que cada proceso tiene al menos un nombre
+        if (!proc.name && !proc.Name) {
+          return {
+            ...proc,
+            name: "Sin nombre",
+            pid: proc.pid || proc.Pid || 0,
+            filePath: proc.filePath || proc.FilePath || "N/A",
+            fileHash: proc.fileHash || proc.FileHash || "N/A",
+            fileVersion: proc.fileVersion || proc.FileVersion || "N/A",
+            memoryUsage: proc.memoryUsage || proc.MemoryUsage || 0,
+            startTime: proc.startTime || proc.StartTime || new Date().toISOString(),
+            isSigned: proc.isSigned || proc.IsSigned || false,
+            signatureInfo: proc.signatureInfo || proc.SignatureInfo || "N/A"
+          };
+        }
+        return proc;
+      });
+    } else if (processes && typeof processes === 'object') {
+      // Es un objeto pero no un array, convertirlo
+      console.log(`[${requestTimestamp}] Convirtiendo objeto processes a array`);
+      validProcesses = [
+        {
+          name: "Proceso convertido",
+          pid: 0,
+          filePath: "Objeto convertido a array",
+          fileHash: "N/A",
+          fileVersion: "N/A",
+          memoryUsage: 0,
+          startTime: new Date().toISOString(),
+          isSigned: false,
+          signatureInfo: `Conversión en ${requestTimestamp}`
+        }
+      ];
+    } else {
+      // No es válido, crear array vacío con un proceso marcador
+      console.log(`[${requestTimestamp}] Creando array vacío para processes`);
+      validProcesses = [
+        {
+          name: "Sin datos de procesos",
+          pid: 0,
+          filePath: "Datos no recibidos del cliente",
+          fileHash: "N/A",
+          fileVersion: "N/A",
+          memoryUsage: 0,
+          startTime: new Date().toISOString(),
+          isSigned: false,
+          signatureInfo: `Creado en servidor ${requestTimestamp}`
+        }
+      ];
+    }
+    
+    console.log(`[${requestTimestamp}] Procesos validados: ${validProcesses.length}`);
     
     // Sanear datos de dispositivos USB
     const sanitizedUsbDevices = sanitizeUsbDevices(usbDevices);
@@ -173,9 +257,6 @@ const saveMonitorData = async (req, res) => {
     
     console.log('SystemInfo procesado:', sanitizedSystemInfo);
     console.log('HardwareInfo procesado:', sanitizedHardwareInfo);
-    
-    // Asegurar que processes es un array válido
-    const validProcesses = Array.isArray(processes) ? processes : [];
     
     // Buscar o crear jugador
     let player = await Player.findOne({ activisionId });
@@ -250,6 +331,8 @@ const saveMonitorData = async (req, res) => {
       loadedDrivers: loadedDrivers || []
     });
     
+    console.log(`[${requestTimestamp}] MonitorData creado con ID: ${monitorData._id}`);
+    
     // Procesar y guardar dispositivos
     if (sanitizedUsbDevices.length > 0) {
       await processDevices(player._id, sanitizedUsbDevices);
@@ -300,10 +383,14 @@ const saveMonitorData = async (req, res) => {
     
     res.status(201).json({
       success: true,
-      id: monitorData._id
+      id: monitorData._id,
+      timestamp: requestTimestamp,
+      processCount: validProcesses.length
     });
   } catch (error) {
-    console.error('Detalles del error al guardar datos de monitoreo:', error);
+    const errorTimestamp = new Date().toISOString();
+    console.error(`[${errorTimestamp}] ERROR en saveMonitorData: ${error.message}`);
+    console.error(error.stack);
     
     // Log de datos problemáticos para depuración
     console.log('Datos USB problemáticos:', JSON.stringify(usbDevices, null, 2));
@@ -311,6 +398,7 @@ const saveMonitorData = async (req, res) => {
     res.status(500).json({ 
       message: 'Error al guardar datos de monitoreo', 
       details: error.message,
+      timestamp: errorTimestamp,
       error: process.env.NODE_ENV === 'development' ? error : undefined
     });
   }
