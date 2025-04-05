@@ -1,4 +1,4 @@
-// controllers/monitorController.js
+// Path: backend/controllers/monitorController.js
 const mongoose = require('mongoose');
 const Player = require('../models/Player');
 const Device = require('../models/Device');
@@ -155,6 +155,7 @@ const saveMonitorData = async (req, res) => {
     console.log('Datos recibidos:');
     console.log('- activisionId:', activisionId);
     console.log('- channelId:', channelId);
+    console.log('- processes presente:', Array.isArray(processes) ? processes.length : 'No es un array');
     console.log('- systemInfo presente:', !!systemInfo);
     console.log('- hardwareInfo presente:', !!hardwareInfo);
     
@@ -172,6 +173,9 @@ const saveMonitorData = async (req, res) => {
     
     console.log('SystemInfo procesado:', sanitizedSystemInfo);
     console.log('HardwareInfo procesado:', sanitizedHardwareInfo);
+    
+    // Asegurar que processes es un array válido
+    const validProcesses = Array.isArray(processes) ? processes : [];
     
     // Buscar o crear jugador
     let player = await Player.findOne({ activisionId });
@@ -240,7 +244,7 @@ const saveMonitorData = async (req, res) => {
       timestamp: timestamp || new Date(),
       isGameRunning: isGameRunning || false,
       pcStartTime,
-      processes: processes || [],
+      processes: validProcesses,
       usbDevices: sanitizedUsbDevices,
       networkConnections: networkConnections || [],
       loadedDrivers: loadedDrivers || []
