@@ -1,3 +1,5 @@
+// Path: frontend/src/components/players/ProcessList.jsx
+
 import React, { useState, useEffect } from 'react';
 import { 
   CheckCircleIcon, 
@@ -13,12 +15,17 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
   const [filterType, setFilterType] = useState('all');
   const { socket } = useSocket();
 
-  // Escuchar actualizaciones en tiempo real de procesos
+  // Ensure processes is always an array
+  useEffect(() => {
+    setProcesses(Array.isArray(initialProcesses) ? initialProcesses : []);
+  }, [initialProcesses]);
+
+  // Listen for real-time process updates
   useEffect(() => {
     if (!socket) return;
 
     const handleMonitorUpdate = (data) => {
-      if (data.processes) {
+      if (data.processes && Array.isArray(data.processes)) {
         setProcesses(data.processes);
       }
     };
@@ -30,19 +37,22 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
     };
   }, [socket]);
 
-  // Clasificar nivel de sospecha de un proceso
+  // Classify process threat level
   const getProcessThreatLevel = (process) => {
-    // Proceso legítimo y firmado
-    if (process.isSigned) return 'trusted';
+    // Properly handle undefined/null process
+    if (!process) return 'unknown';
     
-    // Proceso potencialmente sospechoso
-    if (process.suspicious) return 'suspicious';
+    // Explicitly signed process
+    if (process.isSigned === true) return 'trusted';
     
-    // Proceso desconocido o sin firma
+    // Explicitly suspicious process
+    if (process.suspicious === true) return 'suspicious';
+    
+    // Default for unsigned/unknown processes
     return 'unknown';
   };
 
-  // Renderizar ícono según el nivel de sospecha
+  // Render icon based on threat level
   const renderThreatIcon = (process) => {
     const threatLevel = getProcessThreatLevel(process);
     
@@ -52,13 +62,12 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
       case 'suspicious':
         return <ExclamationTriangleIcon className="h-5 w-5 text-warning-500" />;
       case 'unknown':
-        return <InformationCircleIcon className="h-5 w-5 text-primary-500" />;
       default:
-        return <XCircleIcon className="h-5 w-5 text-danger-500" />;
+        return <InformationCircleIcon className="h-5 w-5 text-primary-500" />;
     }
   };
 
-  // Obtener color de fila según nivel de sospecha
+  // Get row color class based on threat level
   const getRowColorClass = (process) => {
     const threatLevel = getProcessThreatLevel(process);
     
@@ -68,32 +77,41 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
       case 'suspicious':
         return 'bg-warning-50';
       case 'unknown':
-        return 'bg-primary-50';
       default:
-        return 'bg-danger-50';
+        return '';
     }
   };
 
-  // Filtrar procesos
+  // Format process memory usage
+  const formatMemory = (memoryBytes) => {
+    if (!memoryBytes || isNaN(memoryBytes)) return 'N/A';
+    
+    const mb = memoryBytes / (1024 * 1024);
+    return `${mb.toFixed(2)} MB`;
+  };
+
+  // Filter processes based on search term and filter type
   const filteredProcesses = processes.filter(process => {
+    if (!process) return false;
+    
     const matchesSearch = !searchTerm || 
-      process.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      process.filePath?.toLowerCase().includes(searchTerm.toLowerCase());
+      (process.name && process.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (process.filePath && process.filePath.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesFilter = filterType === 'all' || 
-      (filterType === 'trusted' && process.isSigned) ||
-      (filterType === 'suspicious' && process.suspicious) ||
-      (filterType === 'unknown' && !process.isSigned);
+      (filterType === 'trusted' && process.isSigned === true) ||
+      (filterType === 'suspicious' && process.suspicious === true) ||
+      (filterType === 'unknown' && process.isSigned !== true);
     
     return matchesSearch && matchesFilter;
   });
 
   return (
     <div className="space-y-4">
-      {/* Controles de filtro */}
+      {/* Filter controls */}
       <div className="flex flex-col space-y-3 md:flex-row md:items-center md:justify-between md:space-y-0">
         <div className="flex flex-col space-y-3 md:flex-row md:items-center md:space-x-4 md:space-y-0">
-          {/* Búsqueda */}
+          {/* Search */}
           <div className="relative">
             <input
               type="text"
@@ -104,7 +122,7 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
             />
           </div>
           
-          {/* Filtro por tipo de proceso */}
+          {/* Filter by process type */}
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
@@ -122,10 +140,10 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
         </div>
       </div>
       
-      {/* Tabla de procesos */}
+      {/* Process table */}
       {processes.length === 0 ? (
         <div className="rounded-md bg-gray-50 p-6 text-center">
-          <p className="text-gray-500">No hay procesos activos</p>
+          <p className="text-gray-500">No hay datos de procesos disponibles</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -164,9 +182,7 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-500">
-                      {process.memoryUsage 
-                        ? `${(process.memoryUsage / (1024 * 1024)).toFixed(2)} MB` 
-                        : 'N/A'}
+                      {formatMemory(process.memoryUsage)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
