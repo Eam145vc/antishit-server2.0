@@ -4,13 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { 
   CheckCircleIcon, 
   ExclamationTriangleIcon, 
-  XCircleIcon, 
   InformationCircleIcon 
-} from '@heroicons/react/24/solid';
+} from '@heroicons/react/24/outline';
 import { useSocket } from '../../context/SocketContext';
 
 // Version info to track updates
-const COMPONENT_VERSION = "2.0.0-20250406";
+const COMPONENT_VERSION = "2.1.0-20250406";
 
 const ProcessList = ({ processes: initialProcesses = [] }) => {
   // Componente simple para procesos de depuración
@@ -26,7 +25,7 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
   const [processes, setProcesses] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [showDebug, setShowDebug] = useState(false);
+  const [showDebug, setShowDebug] = useState(true); // Activar depuración por defecto
   const { socket, connected } = useSocket();
 
   // Función para generar procesos de ejemplo si no hay datos reales
@@ -63,133 +62,107 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
     ];
   };
 
+  // Función para normalizar procesos
+  const normalizeProcesses = (inputProcesses) => {
+    console.log("Normalizing processes, received data type:", typeof inputProcesses);
+    
+    if (!inputProcesses) {
+      console.warn("No se recibieron datos de procesos");
+      return [];
+    }
+    
+    if (!Array.isArray(inputProcesses)) {
+      console.warn("Los datos de procesos no son un array:", inputProcesses);
+      return [];
+    }
+    
+    return inputProcesses.map((proc, index) => {
+      if (!proc) {
+        return {
+          name: `Proceso ${index}`,
+          pid: index,
+          filePath: "N/A",
+          fileHash: "N/A",
+          fileVersion: "N/A",
+          isSigned: false,
+          memoryUsage: 0,
+          startTime: "N/A",
+          signatureInfo: "N/A",
+          suspicious: false
+        };
+      }
+      
+      return {
+        name: proc.name || proc.Name || `Proceso ${index}`,
+        pid: typeof proc.pid === 'number' ? proc.pid : 
+             (typeof proc.Pid === 'number' ? proc.Pid : index),
+        filePath: proc.filePath || proc.FilePath || "N/A",
+        fileHash: proc.fileHash || proc.FileHash || "N/A",
+        fileVersion: proc.fileVersion || proc.FileVersion || "N/A",
+        memoryUsage: typeof proc.memoryUsage === 'number' ? proc.memoryUsage : 
+                     (typeof proc.MemoryUsage === 'number' ? proc.MemoryUsage : 0),
+        isSigned: typeof proc.isSigned === 'boolean' ? proc.isSigned : 
+                  (typeof proc.IsSigned === 'boolean' ? proc.IsSigned : false),
+        startTime: proc.startTime || proc.StartTime || "N/A",
+        signatureInfo: proc.signatureInfo || proc.SignatureInfo || "N/A",
+        suspicious: typeof proc.suspicious === 'boolean' ? proc.suspicious : 
+                   (typeof proc.Suspicious === 'boolean' ? proc.Suspicious : false)
+      };
+    });
+  };
+
+  // Inicializar procesos al cargar el componente
   useEffect(() => {
     console.log(`ProcessList v${COMPONENT_VERSION} inicializado`);
     console.log("Datos iniciales recibidos:", initialProcesses);
     
-    let processedData = [];
-    
-    // Si no hay datos o son inválidos, mostrar datos de ejemplo
-    if (!Array.isArray(initialProcesses) || initialProcesses.length === 0) {
-      console.warn("No se recibieron datos de procesos válidos. Usando datos de ejemplo.");
-      processedData = generateSampleProcesses();
-    } else {
-      // Intentar normalizar los datos recibidos
-      try {
-        processedData = initialProcesses.map((proc, index) => {
-          if (!proc) {
-            return {
-              name: `Proceso ${index}`,
-              pid: 0,
-              filePath: "Datos inválidos",
-              fileVersion: "N/A",
-              memoryUsage: 0,
-              isSigned: false
-            };
-          }
-          
-          // Intentar obtener cada campo, probando diferentes variantes de nombre
-          return {
-            name: proc.name || proc.Name || `Proceso ${index}`,
-            pid: typeof proc.pid === 'number' ? proc.pid : 
-                 (typeof proc.Pid === 'number' ? proc.Pid : index),
-            filePath: proc.filePath || proc.FilePath || "N/A",
-            fileHash: proc.fileHash || proc.FileHash || "N/A",
-            fileVersion: proc.fileVersion || proc.FileVersion || "N/A",
-            memoryUsage: typeof proc.memoryUsage === 'number' ? proc.memoryUsage : 
-                         (typeof proc.MemoryUsage === 'number' ? proc.MemoryUsage : 0),
-            isSigned: typeof proc.isSigned === 'boolean' ? proc.isSigned : 
-                      (typeof proc.IsSigned === 'boolean' ? proc.IsSigned : false),
-            startTime: proc.startTime || proc.StartTime || "N/A",
-            signatureInfo: proc.signatureInfo || proc.SignatureInfo || "N/A",
-            suspicious: proc.suspicious || proc.Suspicious || false
-          };
-        });
-      } catch (error) {
-        console.error("Error procesando datos de procesos:", error);
-        processedData = generateSampleProcesses();
+    try {
+      const normalizedProcesses = normalizeProcesses(initialProcesses);
+      console.log("Procesos normalizados:", normalizedProcesses);
+      
+      if (normalizedProcesses.length === 0) {
+        console.log("No se encontraron procesos válidos, usando datos de ejemplo");
+        setProcesses(generateSampleProcesses());
+      } else {
+        setProcesses(normalizedProcesses);
       }
+    } catch (error) {
+      console.error("Error al procesar los datos iniciales:", error);
+      setProcesses(generateSampleProcesses());
     }
-    
-    console.log("Datos de procesos procesados:", processedData);
-    setProcesses(processedData);
   }, []);
-  
+
   // Actualizar cuando cambien los props
   useEffect(() => {
+    console.log("Props de procesos actualizados:", initialProcesses);
+    
     if (Array.isArray(initialProcesses) && initialProcesses.length > 0) {
-      console.log("Nuevos datos de procesos recibidos:", initialProcesses);
-      
       try {
-        const processedData = initialProcesses.map((proc, index) => {
-          if (!proc) {
-            return {
-              name: `Proceso ${index}`,
-              pid: 0,
-              filePath: "Datos inválidos",
-              fileVersion: "N/A",
-              memoryUsage: 0,
-              isSigned: false
-            };
-          }
-          
-          return {
-            name: proc.name || proc.Name || `Proceso ${index}`,
-            pid: typeof proc.pid === 'number' ? proc.pid : 
-                 (typeof proc.Pid === 'number' ? proc.Pid : index),
-            filePath: proc.filePath || proc.FilePath || "N/A",
-            fileHash: proc.fileHash || proc.FileHash || "N/A",
-            fileVersion: proc.fileVersion || proc.FileVersion || "N/A",
-            memoryUsage: typeof proc.memoryUsage === 'number' ? proc.memoryUsage : 
-                         (typeof proc.MemoryUsage === 'number' ? proc.MemoryUsage : 0),
-            isSigned: typeof proc.isSigned === 'boolean' ? proc.isSigned : 
-                      (typeof proc.IsSigned === 'boolean' ? proc.IsSigned : false),
-            startTime: proc.startTime || proc.StartTime || "N/A",
-            signatureInfo: proc.signatureInfo || proc.SignatureInfo || "N/A",
-            suspicious: proc.suspicious || proc.Suspicious || false
-          };
-        });
-        
-        console.log("Datos procesados:", processedData);
-        setProcesses(processedData);
+        const normalizedProcesses = normalizeProcesses(initialProcesses);
+        console.log("Procesos actualizados normalizados:", normalizedProcesses);
+        setProcesses(normalizedProcesses);
       } catch (error) {
-        console.error("Error procesando nuevos datos:", error);
+        console.error("Error al procesar nuevos datos:", error);
       }
     }
   }, [initialProcesses]);
   
-  // Escuchar actualizaciones en tiempo real
+  // Escuchar actualizaciones en tiempo real de monitoreo
   useEffect(() => {
     if (!socket) return;
-    
+
     const handleMonitorUpdate = (data) => {
+      console.log("Socket update received:", data);
+      
       if (data && data.processes && Array.isArray(data.processes)) {
-        console.log(`Socket update received with ${data.processes.length} processes`);
+        console.log(`Actualización de socket con ${data.processes.length} procesos`);
         
         try {
-          const processedData = data.processes.map((proc, index) => {
-            if (!proc) return null;
-            
-            return {
-              name: proc.name || proc.Name || `Proceso ${index}`,
-              pid: typeof proc.pid === 'number' ? proc.pid : 
-                   (typeof proc.Pid === 'number' ? proc.Pid : index),
-              filePath: proc.filePath || proc.FilePath || "N/A",
-              fileHash: proc.fileHash || proc.FileHash || "N/A",
-              fileVersion: proc.fileVersion || proc.FileVersion || "N/A",
-              memoryUsage: typeof proc.memoryUsage === 'number' ? proc.memoryUsage : 
-                           (typeof proc.MemoryUsage === 'number' ? proc.MemoryUsage : 0),
-              isSigned: typeof proc.isSigned === 'boolean' ? proc.isSigned : 
-                        (typeof proc.IsSigned === 'boolean' ? proc.IsSigned : false),
-              startTime: proc.startTime || proc.StartTime || "N/A",
-              signatureInfo: proc.signatureInfo || proc.SignatureInfo || "N/A",
-              suspicious: proc.suspicious || proc.Suspicious || false
-            };
-          }).filter(p => p !== null);
-          
-          setProcesses(processedData);
+          const normalizedProcesses = normalizeProcesses(data.processes);
+          console.log("Procesos de socket normalizados:", normalizedProcesses);
+          setProcesses(normalizedProcesses);
         } catch (error) {
-          console.error("Error procesando actualizaciones de socket:", error);
+          console.error("Error procesando actualización de socket:", error);
         }
       }
     };
@@ -242,7 +215,7 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
   };
 
   // Filter processes
-  const filteredProcesses = Array.isArray(processes) ? processes.filter(process => {
+  const filteredProcesses = processes.filter(process => {
     if (!process) return false;
     
     const matchesSearch = !searchTerm || 
@@ -255,7 +228,7 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
       (filterType === 'unknown' && process.isSigned !== true);
     
     return matchesSearch && matchesFilter;
-  }) : [];
+  });
 
   return (
     <div className="space-y-4">
