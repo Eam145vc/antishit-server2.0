@@ -10,7 +10,7 @@ import {
 import { useSocket } from '../../context/SocketContext';
 
 // Version info to track updates
-const COMPONENT_VERSION = "1.2.0-20250405";
+const COMPONENT_VERSION = "1.3.0-20250406";
 
 const ProcessList = ({ processes: initialProcesses = [] }) => {
   const [processes, setProcesses] = useState([]);
@@ -35,7 +35,26 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
     
     // Initialize processes safely
     if (Array.isArray(initialProcesses)) {
-      setProcesses(initialProcesses);
+      // Normalize process data to handle different case styles
+      const normalizedProcesses = initialProcesses.map(process => {
+        if (!process) return null;
+        
+        // Create a normalized process object with consistent keys
+        return {
+          name: process.name || process.Name || "Desconocido",
+          pid: process.pid || process.Pid || 0,
+          filePath: process.filePath || process.FilePath || "N/A",
+          fileHash: process.fileHash || process.FileHash || "N/A",
+          fileVersion: process.fileVersion || process.FileVersion || "N/A",
+          memoryUsage: process.memoryUsage || process.MemoryUsage || 0,
+          startTime: process.startTime || process.StartTime || "N/A",
+          isSigned: process.isSigned || process.IsSigned || false,
+          signatureInfo: process.signatureInfo || process.SignatureInfo || "N/A",
+          suspicious: process.suspicious || process.Suspicious || false
+        };
+      }).filter(p => p !== null);
+      
+      setProcesses(normalizedProcesses);
     } else {
       console.error("initialProcesses is not an array:", initialProcesses);
       // Create a placeholder
@@ -55,7 +74,25 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
   // Update when new processes are passed as props
   useEffect(() => {
     if (Array.isArray(initialProcesses)) {
-      setProcesses(initialProcesses);
+      // Normalize process data
+      const normalizedProcesses = initialProcesses.map(process => {
+        if (!process) return null;
+        
+        return {
+          name: process.name || process.Name || "Desconocido",
+          pid: process.pid || process.Pid || 0,
+          filePath: process.filePath || process.FilePath || "N/A",
+          fileHash: process.fileHash || process.FileHash || "N/A",
+          fileVersion: process.fileVersion || process.FileVersion || "N/A",
+          memoryUsage: process.memoryUsage || process.MemoryUsage || 0,
+          startTime: process.startTime || process.StartTime || "N/A",
+          isSigned: process.isSigned || process.IsSigned || false,
+          signatureInfo: process.signatureInfo || process.SignatureInfo || "N/A",
+          suspicious: process.suspicious || process.Suspicious || false
+        };
+      }).filter(p => p !== null);
+      
+      setProcesses(normalizedProcesses);
       setDebugInfo(prev => ({
         ...prev,
         receivedCount: initialProcesses.length,
@@ -78,7 +115,25 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
         console.log(`Socket update received with ${Array.isArray(data.processes) ? data.processes.length : 'invalid'} processes`);
         
         if (Array.isArray(data.processes)) {
-          setProcesses(data.processes);
+          // Normalize process data from socket updates
+          const normalizedProcesses = data.processes.map(process => {
+            if (!process) return null;
+            
+            return {
+              name: process.name || process.Name || "Desconocido",
+              pid: process.pid || process.Pid || 0,
+              filePath: process.filePath || process.FilePath || "N/A",
+              fileHash: process.fileHash || process.FileHash || "N/A",
+              fileVersion: process.fileVersion || process.FileVersion || "N/A",
+              memoryUsage: process.memoryUsage || process.MemoryUsage || 0,
+              startTime: process.startTime || process.StartTime || "N/A",
+              isSigned: process.isSigned || process.IsSigned || false,
+              signatureInfo: process.signatureInfo || process.SignatureInfo || "N/A",
+              suspicious: process.suspicious || process.Suspicious || false
+            };
+          }).filter(p => p !== null);
+          
+          setProcesses(normalizedProcesses);
           setDebugInfo(prev => ({
             ...prev,
             receivedCount: data.processes.length,
