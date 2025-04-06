@@ -117,6 +117,16 @@ const socketSetup = (server) => {
 const emitMonitorData = (data) => {
   if (!global.io) return;
 
+  // Log para depuración
+  console.log(`Emitiendo datos de monitoreo para ${data.activisionId}:`, 
+    JSON.stringify({
+      activisionId: data.activisionId,
+      channelId: data.channelId,
+      isOnline: data.isOnline,
+      processCount: data.processes ? data.processes.length : 'none',
+      timestamp: new Date()
+    }));
+
   // Emitir al canal específico
   global.io.to(`channel:${data.channelId}`).emit('monitor-update', data);
   
@@ -134,6 +144,9 @@ const emitMonitorData = (data) => {
 // Función para emitir alerta
 const emitAlert = (alert) => {
   if (!global.io) return;
+
+  // Log para depuración
+  console.log(`Emitiendo alerta: ${alert.message}`);
 
   // Emitir a canal específico
   global.io.to(`channel:${alert.channelId}`).emit('new-alert', alert);
