@@ -39,13 +39,15 @@ const PlayerDetail = () => {
   useEffect(() => {
     if (!socket || !player) return;
 
+    console.log("Configurando escucha de socket para actualizaciones de monitoreo");
+
     const handleMonitorUpdate = (data) => {
       if (data.activisionId === player.activisionId) {
         console.log("Recibida actualización en tiempo real:", data);
         
         // Actualizar datos en tiempo real
         if (data.processes && Array.isArray(data.processes)) {
-          console.log("Actualizando procesos con:", data.processes);
+          console.log("Actualizando procesos con:", data.processes.length, "procesos");
           setProcessData(data.processes);
         }
         
@@ -160,29 +162,10 @@ const PlayerDetail = () => {
           
           setMonitorData(latestMonitorData);
           
-          // Establecer datos de procesos, verificando si existen y si son un array
+          // Establecer datos de procesos si existen
           if (latestMonitorData.processes && Array.isArray(latestMonitorData.processes)) {
-            console.log("Procesos recibidos:", latestMonitorData.processes);
-            
-            // Crear procesos con una estructura más sólida
-            const processesFormatted = latestMonitorData.processes.map(proc => {
-              // Asegurar que cada campo tenga un valor predeterminado
-              return {
-                name: proc.name || proc.Name || "Desconocido",
-                pid: typeof proc.pid === 'number' ? proc.pid : (typeof proc.Pid === 'number' ? proc.Pid : 0),
-                filePath: proc.filePath || proc.FilePath || "N/A",
-                fileHash: proc.fileHash || proc.FileHash || "N/A",
-                fileVersion: proc.fileVersion || proc.FileVersion || "N/A",
-                isSigned: typeof proc.isSigned === 'boolean' ? proc.isSigned : (typeof proc.IsSigned === 'boolean' ? proc.IsSigned : false),
-                memoryUsage: typeof proc.memoryUsage === 'number' ? proc.memoryUsage : (typeof proc.MemoryUsage === 'number' ? proc.MemoryUsage : 0),
-                startTime: proc.startTime || proc.StartTime || "N/A",
-                signatureInfo: proc.signatureInfo || proc.SignatureInfo || "N/A",
-                suspicious: proc.suspicious || proc.Suspicious || false
-              };
-            });
-            
-            console.log("Procesos formateados:", processesFormatted);
-            setProcessData(processesFormatted);
+            console.log("Procesos recibidos:", latestMonitorData.processes.length);
+            setProcessData(latestMonitorData.processes);
           } else {
             console.warn("No se recibieron procesos válidos, estableciendo array vacío");
             setProcessData([]);
