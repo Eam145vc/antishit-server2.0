@@ -1,3 +1,5 @@
+// Path: frontend/src/components/players/PlayerDetail.jsx
+
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -42,8 +44,14 @@ const PlayerDetail = () => {
         console.log("Recibida actualización en tiempo real:", data);
         
         // Actualizar datos en tiempo real
-        if (data.processes) setProcessData(data.processes);
-        if (data.networkConnections) setNetworkData(data.networkConnections);
+        if (data.processes && Array.isArray(data.processes)) {
+          console.log("Actualizando procesos con:", data.processes);
+          setProcessData(data.processes);
+        }
+        
+        if (data.networkConnections && Array.isArray(data.networkConnections)) {
+          setNetworkData(data.networkConnections);
+        }
         
         // Actualizar información del sistema de manera segura
         if (data.systemInfo) {
@@ -152,17 +160,40 @@ const PlayerDetail = () => {
           
           setMonitorData(latestMonitorData);
           
-          // Establecer datos de procesos y red
-          if (latestMonitorData.processes) {
-            setProcessData(latestMonitorData.processes);
+          // Establecer datos de procesos, verificando si existen y si son un array
+          if (latestMonitorData.processes && Array.isArray(latestMonitorData.processes)) {
+            console.log("Procesos recibidos:", latestMonitorData.processes);
+            
+            // Crear procesos con una estructura más sólida
+            const processesFormatted = latestMonitorData.processes.map(proc => {
+              // Asegurar que cada campo tenga un valor predeterminado
+              return {
+                name: proc.name || proc.Name || "Desconocido",
+                pid: typeof proc.pid === 'number' ? proc.pid : (typeof proc.Pid === 'number' ? proc.Pid : 0),
+                filePath: proc.filePath || proc.FilePath || "N/A",
+                fileHash: proc.fileHash || proc.FileHash || "N/A",
+                fileVersion: proc.fileVersion || proc.FileVersion || "N/A",
+                isSigned: typeof proc.isSigned === 'boolean' ? proc.isSigned : (typeof proc.IsSigned === 'boolean' ? proc.IsSigned : false),
+                memoryUsage: typeof proc.memoryUsage === 'number' ? proc.memoryUsage : (typeof proc.MemoryUsage === 'number' ? proc.MemoryUsage : 0),
+                startTime: proc.startTime || proc.StartTime || "N/A",
+                signatureInfo: proc.signatureInfo || proc.SignatureInfo || "N/A",
+                suspicious: proc.suspicious || proc.Suspicious || false
+              };
+            });
+            
+            console.log("Procesos formateados:", processesFormatted);
+            setProcessData(processesFormatted);
+          } else {
+            console.warn("No se recibieron procesos válidos, estableciendo array vacío");
+            setProcessData([]);
           }
           
-          if (latestMonitorData.networkConnections) {
+          // Establecer datos de conexiones de red
+          if (latestMonitorData.networkConnections && Array.isArray(latestMonitorData.networkConnections)) {
             setNetworkData(latestMonitorData.networkConnections);
+          } else {
+            setNetworkData([]);
           }
-          
-          // NOTA: No intentamos usar systemInfo ni hardwareInfo del historial
-          // porque sabemos que no están incluidos en MonitorData
         }
         
         setError(null);
