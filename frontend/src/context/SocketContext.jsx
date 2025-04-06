@@ -28,26 +28,51 @@ export const SocketProvider = ({ children }) => {
     
     if (!token) return;
     
+    console.log('Iniciando conexión con Socket.IO en:', SOCKET_URL);
+    
     const socketIo = io(SOCKET_URL, {
       path: '/socket.io',
       auth: {
         token
-      }
+      },
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
     });
     
     socketIo.on('connect', () => {
       setConnected(true);
-      console.log('Socket conectado');
+      console.log('Socket conectado correctamente');
+      toast.success('Conectado en tiempo real');
     });
     
-    socketIo.on('disconnect', () => {
+    socketIo.on('disconnect', (reason) => {
       setConnected(false);
-      console.log('Socket desconectado');
+      console.log('Socket desconectado, razón:', reason);
+      
+      if (reason === 'io server disconnect') {
+        // Reconectar manualmente si fue desconectado por el servidor
+        socketIo.connect();
+      }
     });
     
     socketIo.on('connect_error', (error) => {
       console.error('Error de conexión del socket:', error);
       toast.error('Error de conexión en tiempo real');
+    });
+    
+    socketIo.on('reconnect_attempt', (attemptNumber) => {
+      console.log(`Intento de reconexión #${attemptNumber}`);
+    });
+    
+    socketIo.on('reconnect', (attemptNumber) => {
+      console.log(`Reconectado después de ${attemptNumber} intentos`);
+      setConnected(true);
+      toast.success('Reconectado en tiempo real');
+    });
+    
+    socketIo.on('reconnect_failed', () => {
+      console.error('Reconexión fallida después de varios intentos');
+      toast.error('No se pudo reconectar al servidor');
     });
     
     socketIo.on('error', (error) => {
@@ -61,11 +86,18 @@ export const SocketProvider = ({ children }) => {
         duration: 6000,
       });
     });
+
+    // Agregamos un listener específico para monitor-update
+    socketIo.on('monitor-update', (data) => {
+      console.log('Actualización de monitoreo recibida:', data);
+      // No hacemos nada aquí, cada componente maneja sus propias actualizaciones
+    });
     
     setSocket(socketIo);
     
     // Limpieza al desmontar
     return () => {
+      console.log('Desconectando socket...');
       if (socketIo) {
         socketIo.disconnect();
       }
@@ -77,7 +109,10 @@ export const SocketProvider = ({ children }) => {
     if (socket && connected) {
       socket.emit('join-channel', channelId);
       console.log(`Unido al canal ${channelId}`);
+      return true;
     }
+    console.warn('No se pudo unir al canal - socket no conectado');
+    return false;
   };
   
   // Función para salir de un canal
@@ -85,16 +120,20 @@ export const SocketProvider = ({ children }) => {
     if (socket && connected) {
       socket.emit('leave-channel', channelId);
       console.log(`Salido del canal ${channelId}`);
+      return true;
     }
+    return false;
   };
   
   // Función para solicitar captura de pantalla
   const requestScreenshot = (activisionId, channelId) => {
     if (socket && connected) {
+      console.log(`Solicitando captura para ${activisionId} en canal ${channelId}`);
       socket.emit('request-screenshot', { activisionId, channelId });
       toast.success(`Solicitando captura para ${activisionId}`);
       return true;
     }
+    console.warn('No se pudo solicitar captura - socket no conectado');
     toast.error('No hay conexión en tiempo real');
     return false;
   };
