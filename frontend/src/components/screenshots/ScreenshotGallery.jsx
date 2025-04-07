@@ -14,7 +14,7 @@ import { useSocket } from '../../context/SocketContext';
 const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded = false }) => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { requestScreenshot } = useSocket();
+  const { requestScreenshot, connected } = useSocket();
   
   const [screenshots, setScreenshots] = useState(propsScreenshots || []);
   const [filteredScreenshots, setFilteredScreenshots] = useState([]);
@@ -23,11 +23,17 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   const [isLoading, setIsLoading] = useState(!propsScreenshots);
   const [error, setError] = useState(null);
   
-  // Solicitar captura de pantalla manualmente
+  // Solicitar captura de pantalla manualmente - MODIFICADO
   const handleManualScreenshot = async () => {
     try {
       const token = localStorage.getItem('token');
       const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
+      
+      // Si no hay ID de jugador, mostrar error
+      if (!playerId && !id) {
+        toast.error('No se pudo identificar al jugador');
+        return;
+      }
       
       const response = await axios.get(`${apiUrl}/players/${playerId || id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -35,16 +41,39 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       
       const { activisionId, currentChannelId } = response.data;
       
-      const result = requestScreenshot(activisionId, currentChannelId);
+      if (!activisionId || !currentChannelId) {
+        toast.error('Información de jugador incompleta');
+        return;
+      }
       
-      if (result) {
-        toast.success('Captura de pantalla solicitada');
+      console.log('Solicitando captura para:', { activisionId, currentChannelId });
+      
+      // Verificar si el socket está conectado
+      if (connected) {
+        // Usar socket.io
+        const result = requestScreenshot(activisionId, currentChannelId);
+        
+        if (result) {
+          toast.success('Captura de pantalla solicitada vía socket');
+        } else {
+          // Si falla el socket, intentar con HTTP
+          await axios.post(`${apiUrl}/screenshots/request`, 
+            { activisionId, channelId: currentChannelId },
+            { headers: { 'Authorization': `Bearer ${token}` } }
+          );
+          toast.success('Captura de pantalla solicitada vía HTTP');
+        }
       } else {
-        toast.error('No se pudo solicitar la captura');
+        // Si no hay conexión socket, usar HTTP directamente
+        await axios.post(`${apiUrl}/screenshots/request`, 
+          { activisionId, channelId: currentChannelId },
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        toast.success('Captura de pantalla solicitada');
       }
     } catch (error) {
       console.error('Error solicitando captura:', error);
-      toast.error('Error al solicitar captura');
+      toast.error('Error al solicitar captura: ' + (error.response?.data?.message || error.message));
     }
   };
   
@@ -135,9 +164,15 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     setFilteredScreenshots(filtered);
   }, [screenshots, searchTerm]);
   
-  // Abrir modal de captura de pantalla
+  // Abrir modal de captura de pantalla - MODIFICADO
   const openScreenshotModal = async (screenshot) => {
     try {
+      // Si ya tenemos los datos de la imagen, usarlos directamente
+      if (screenshot.imageData) {
+        setSelectedScreenshot(screenshot);
+        return;
+      }
+      
       const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
       const token = localStorage.getItem('token');
       
@@ -151,7 +186,15 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         'Authorization': `Bearer ${token}`
       };
       
+      console.log(`Solicitando imagen para captura: ${screenshot._id}`);
       const response = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
+      
+      // Si tenemos respuesta pero no hay datos de imagen, mostrar un mensaje
+      if (!response.data || !response.data.imageData) {
+        console.error('La respuesta no contiene datos de imagen:', response.data);
+        toast.error('La imagen no está disponible');
+        return;
+      }
       
       // Asegurar que la imagen tenga el prefijo correcto
       const base64Image = response.data.imageData.startsWith('data:image')
@@ -164,7 +207,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       });
     } catch (error) {
       console.error('Error al cargar imagen:', error);
-      toast.error('Error al cargar la imagen');
+      toast.error('Error al cargar la imagen: ' + (error.response?.data?.message || error.message));
     }
   };
   
