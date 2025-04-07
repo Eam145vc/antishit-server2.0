@@ -32,34 +32,32 @@ const ScreenshotDetail = () => {
         };
         
         // Obtener los metadatos de la captura
-        try {
-          const response = await axios.get(`${apiUrl}/screenshots/${id}`, { headers });
-          
-          // Obtener la imagen de la captura
-          try {
-            const imageResponse = await axios.get(`${apiUrl}/screenshots/${id}/image`, { headers });
-            
-            setScreenshot({
-              ...response.data,
-              imageData: imageResponse.data.imageData
-            });
-          } catch (imageError) {
-            console.error('Error al cargar imagen:', imageError);
-            setScreenshot(response.data);
-          }
-          
-        } catch (error) {
-          console.error('Error al cargar captura de pantalla:', error);
-          if (error.response?.status === 404) {
-            setError('Captura de pantalla no encontrada');
-          } else {
-            setError('Error al cargar la captura de pantalla');
-          }
-        }
+        const response = await axios.get(`${apiUrl}/screenshots/${id}`, { headers });
         
-      } catch (err) {
-        console.error('Error general:', err);
-        setError('Error al cargar la captura de pantalla');
+        // Obtener la imagen de la captura
+        const imageResponse = await axios.get(`${apiUrl}/screenshots/${id}/image`, { headers });
+        
+        // Verificar y preparar la imagen
+        const imageData = imageResponse.data.imageData;
+        
+        // Asegurar que la imagen tenga el prefijo correcto para base64
+        const base64Image = imageData.startsWith('data:image') 
+          ? imageData 
+          : `data:image/png;base64,${imageData}`;
+        
+        setScreenshot({
+          ...response.data,
+          imageData: base64Image
+        });
+        
+        setError(null);
+      } catch (error) {
+        console.error('Error al cargar captura de pantalla:', error);
+        if (error.response?.status === 404) {
+          setError('Captura de pantalla no encontrada');
+        } else {
+          setError('Error al cargar la captura de pantalla');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -158,9 +156,9 @@ const ScreenshotDetail = () => {
         <div className="card-body p-0">
           {screenshot.imageData ? (
             <img 
-              src={`data:image/png;base64,${screenshot.imageData}`} 
+              src={screenshot.imageData} 
               alt={`Captura de ${screenshot.activisionId}`}
-              className="w-full"
+              className="w-full object-contain max-h-[80vh]"
             />
           ) : (
             <div className="flex h-64 items-center justify-center bg-gray-100">
