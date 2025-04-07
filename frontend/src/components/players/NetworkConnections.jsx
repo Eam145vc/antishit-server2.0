@@ -1,19 +1,51 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSocket } from '../../context/SocketContext';
 
 const NetworkConnections = ({ connections: initialConnections = [] }) => {
-  const [connections, setConnections] = useState(initialConnections);
+  const [connections, setConnections] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProtocol, setFilterProtocol] = useState('');
   const { socket } = useSocket();
 
-  // Escuchar actualizaciones en tiempo real de conexiones de red
+  // Normalizar y procesar conexiones de red
+  const normalizeConnections = (rawConnections) => {
+    return (rawConnections || []).map(connection => {
+      // Valores predeterminados para campos faltantes
+      const normalizedConnection = {
+        localAddress: connection.localAddress || '0.0.0.0',
+        localPort: connection.localPort || 0,
+        remoteAddress: connection.remoteAddress || '0.0.0.0',
+        remotePort: connection.remotePort || 0,
+        protocol: connection.protocol || 'Unknown',
+        state: connection.state || 'Unknown',
+        processName: connection.processName || 'Desconocido',
+        processId: connection.processId || 'N/A'
+      };
+
+      // Mejora para conexiones UDP
+      if (normalizedConnection.protocol === 'UDP') {
+        // Para conexiones UDP en estado "Listening", intentar proporcionar más contexto
+        if (normalizedConnection.state === 'Listening') {
+          normalizedConnection.description = `Escuchando en ${normalizedConnection.localAddress}:${normalizedConnection.localPort}`;
+        }
+      }
+
+      return normalizedConnection;
+    });
+  };
+
+  // Cargar conexiones iniciales
+  useEffect(() => {
+    setConnections(normalizeConnections(initialConnections));
+  }, [initialConnections]);
+
+  // Escuchar actualizaciones de socket
   useEffect(() => {
     if (!socket) return;
 
     const handleMonitorUpdate = (data) => {
-      if (data.networkConnections) {
-        setConnections(data.networkConnections);
+      if (data.networkConnections && Array.isArray(data.networkConnections)) {
+        setConnections(normalizeConnections(data.networkConnections));
       }
     };
 
