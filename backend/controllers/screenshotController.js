@@ -33,12 +33,20 @@ const saveScreenshot = async (req, res) => {
       await player.save();
     }
     
+    // Verificar y normalizar datos de imagen
+    let imageData = screenshot;
+    
+    // Si no tiene prefijo base64, añadirlo
+    if (!imageData.startsWith('data:image')) {
+      imageData = `data:image/png;base64,${imageData}`;
+    }
+    
     // Guardar captura de pantalla
     const newScreenshot = await Screenshot.create({
       player: player._id,
       activisionId,
       channelId,
-      imageData: screenshot,
+      imageData: imageData,
       capturedAt: timestamp || new Date()
     });
     
@@ -47,6 +55,17 @@ const saveScreenshot = async (req, res) => {
       id: newScreenshot._id,
       activisionId,
       channelId,
+      timestamp: newScreenshot.capturedAt
+    });
+    
+    // Emitir alerta
+    emitAlert({
+      type: 'screenshot-taken',
+      playerId: player._id,
+      activisionId,
+      channelId,
+      message: `Nueva captura de pantalla de ${activisionId}`,
+      severity: 'info',
       timestamp: newScreenshot.capturedAt
     });
     
@@ -86,11 +105,23 @@ const requestScreenshot = async (req, res) => {
       timestamp: new Date()
     });
     
+    // Emitir alerta de solicitud de captura
+    emitAlert({
+      type: 'screenshot-request',
+      playerId: player._id,
+      activisionId,
+      channelId,
+      message: `Captura de pantalla solicitada para ${activisionId}`,
+      severity: 'info',
+      timestamp: new Date()
+    });
+    
     res.json({
       success: true,
       message: 'Solicitud de captura enviada'
     });
   } catch (error) {
+    console.error('Error al solicitar captura:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -145,9 +176,29 @@ const getScreenshotById = async (req, res) => {
   }
 };
 
-// @desc    Agregar nota a una captura de pantalla
-// @route   PUT /api/screenshots/:id/notes
+// @desc    Obtener imagen de la captura de pantalla
+// @route   GET /api/screenshots/:id/image
 // @access  Privado
+const getScreenshotImage = async (req, res) => {
+  try {
+    const screenshot = await Screenshot.findById(req.params.id);
+    
+    if (!screenshot) {
+      return res.status(404).json({ message: 'Captura no encontrada' });
+    }
+    
+    // Garantizar que la imagen tenga el prefijo correcto
+    const imageData = screenshot.imageData.startsWith('data:image')
+      ? screenshot.imageData
+      : `data:image/png;base64,${screenshot.imageData}`;
+    
+    res.json({ imageData });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Resto de los métodos (agregación de notas, etc.)
 const addNoteToScreenshot = async (req, res) => {
   try {
     const { notes } = req.body;
@@ -167,9 +218,6 @@ const addNoteToScreenshot = async (req, res) => {
   }
 };
 
-// @desc    Obtener capturas de pantalla de un jugador
-// @route   GET /api/screenshots/player/:id
-// @access  Privado
 const getPlayerScreenshots = async (req, res) => {
   try {
     const { limit = 20 } = req.query;
@@ -193,23 +241,6 @@ const getPlayerScreenshots = async (req, res) => {
   }
 };
 
-// @desc    Obtener imagen de la captura de pantalla
-// @route   GET /api/screenshots/:id/image
-// @access  Privado
-const getScreenshotImage = async (req, res) => {
-  try {
-    const screenshot = await Screenshot.findById(req.params.id);
-    
-    if (!screenshot) {
-      return res.status(404).json({ message: 'Captura no encontrada' });
-    }
-    
-    res.json({ imageData: screenshot.imageData });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
 module.exports = {
   saveScreenshot,
   requestScreenshot,
@@ -217,5 +248,3 @@ module.exports = {
   getScreenshotById,
   addNoteToScreenshot,
   getPlayerScreenshots,
-  getScreenshotImage
-};
