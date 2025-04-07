@@ -19,4 +19,7 @@ router.get('/:id', protect, getScreenshotById);
 router.get('/:id/image', protect, getScreenshotImage);
 router.put('/:id/notes', protect, addNoteToScreenshot);
 
+// Punto de compatibilidad para la API del cliente que usa la ruta en singular
+router.post('/screenshot', saveScreenshot);
+
 module.exports = router;
