@@ -27,6 +27,13 @@ if (process.env.NODE_ENV !== 'production') {
 app.use(express.json({ limit: '10mb' }));  // Reducido para mejorar rendimiento
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Ruta de compatibilidad para el cliente que envía a /api/screenshot
+app.post('/api/screenshot', (req, res) => {
+  // Redirigir a la ruta correcta
+  req.url = '/api/screenshots';
+  app.handle(req, res);
+});
+
 // Rutas de la API
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/players', require('./routes/players'));
