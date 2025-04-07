@@ -32,10 +32,26 @@ const ScreenshotDetail = () => {
         };
         
         // Obtener los metadatos de la captura
+        console.log(`Solicitando metadatos de captura: ${apiUrl}/screenshots/${id}`);
         const response = await axios.get(`${apiUrl}/screenshots/${id}`, { headers });
         
         // Obtener la imagen de la captura
+        console.log(`Solicitando imagen de captura: ${apiUrl}/screenshots/${id}/image`);
         const imageResponse = await axios.get(`${apiUrl}/screenshots/${id}/image`, { headers });
+        
+        // Verificar la respuesta de imagen
+        if (!imageResponse.data || !imageResponse.data.imageData) {
+          console.error('La respuesta no contiene datos de imagen:', imageResponse.data);
+          toast.error('La imagen no está disponible');
+          
+          // Continuar con los metadatos aunque no haya imagen
+          setScreenshot({
+            ...response.data,
+            imageData: null
+          });
+          setError(null);
+          return;
+        }
         
         // Verificar y preparar la imagen
         const imageData = imageResponse.data.imageData;
@@ -56,7 +72,7 @@ const ScreenshotDetail = () => {
         if (error.response?.status === 404) {
           setError('Captura de pantalla no encontrada');
         } else {
-          setError('Error al cargar la captura de pantalla');
+          setError('Error al cargar la captura de pantalla: ' + (error.response?.data?.message || error.message));
         }
       } finally {
         setIsLoading(false);
