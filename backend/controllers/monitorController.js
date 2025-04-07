@@ -8,6 +8,53 @@ const Screenshot = require('../models/Screenshot');
 const { emitMonitorData, emitAlert } = require('../utils/socket');
 const { trackHWID } = require('../utils/hwid');
 
+// Función para sanitizar y normalizar procesos
+const sanitizeProcesses = (processes) => {
+  if (!Array.isArray(processes)) {
+    console.warn('Invalid processes data. Expected an array.');
+    return [];
+  }
+
+  return processes.map((proc, index) => {
+    // Si el proceso es un objeto vacío o no válido, crear uno predeterminado
+    if (!proc || typeof proc !== 'object' || Object.keys(proc).length === 0) {
+      return {
+        name: `Proceso ${index}`,
+        pid: index,
+        filePath: "N/A",
+        fileHash: "N/A",
+        fileVersion: "N/A",
+        isSigned: false,
+        memoryUsage: 0,
+        startTime: "N/A",
+        signatureInfo: "N/A",
+        suspicious: false
+      };
+    }
+
+    // Datos de proceso normalizados con valores predeterminados explícitos
+    return {
+      name: proc.name || proc.Name || `Proceso ${index}`,
+      // Mapeamos processId (nueva propiedad del cliente) a pid (campo esperado en MongoDB)
+      pid: typeof proc.processId === 'number' ? proc.processId : 
+           (typeof proc.pid === 'number' ? proc.pid : 
+            (typeof proc.Pid === 'number' ? proc.Pid : index)),
+      filePath: proc.filePath || proc.FilePath || "N/A",
+      fileHash: proc.fileHash || proc.FileHash || "N/A",
+      fileVersion: proc.fileVersion || proc.FileVersion || "N/A",
+      isSigned: typeof proc.isSigned === 'boolean' ? proc.isSigned : 
+                (typeof proc.IsSigned === 'boolean' ? proc.IsSigned : false),
+      memoryUsage: typeof proc.memoryUsage === 'number' ? proc.memoryUsage : 
+                  (typeof proc.MemoryUsage === 'number' ? proc.MemoryUsage : 0),
+      startTime: proc.startTime || proc.StartTime || "N/A",
+      signatureInfo: proc.signatureInfo || proc.SignatureInfo || "N/A",
+      commandLine: proc.commandLine || proc.CommandLine || "N/A",
+      suspicious: typeof proc.suspicious === 'boolean' ? proc.suspicious : 
+                 (typeof proc.Suspicious === 'boolean' ? proc.Suspicious : false)
+    };
+  });
+};
+
 // Tiempo máximo de inactividad antes de marcar a un jugador como desconectado (5 minutos en ms)
 const INACTIVE_THRESHOLD = 5 * 60 * 1000;
 
@@ -193,25 +240,9 @@ const saveMonitorData = async (req, res) => {
     // Asegurar que processes es un array válido incluso si está mal formado
     let validProcesses = [];
     if (Array.isArray(processes)) {
-      // Es un array, usarlo directamente pero verificar cada elemento
-      validProcesses = processes.map(proc => {
-        // Asegurar que cada proceso tiene al menos un nombre
-        if (!proc.name && !proc.Name) {
-          return {
-            ...proc,
-            name: "Sin nombre",
-            pid: proc.pid || proc.Pid || 0,
-            filePath: proc.filePath || proc.FilePath || "N/A",
-            fileHash: proc.fileHash || proc.FileHash || "N/A",
-            fileVersion: proc.fileVersion || proc.FileVersion || "N/A",
-            memoryUsage: proc.memoryUsage || proc.MemoryUsage || 0,
-            startTime: proc.startTime || proc.StartTime || new Date().toISOString(),
-            isSigned: proc.isSigned || proc.IsSigned || false,
-            signatureInfo: proc.signatureInfo || proc.SignatureInfo || "N/A"
-          };
-        }
-        return proc;
-      });
+      // Usar sanitizeProcesses para normalizar los procesos
+      validProcesses = sanitizeProcesses(processes);
+      console.log(`[${requestTimestamp}] Procesos normalizados: ${validProcesses.length}`);
     } else if (processes && typeof processes === 'object') {
       // Es un objeto pero no un array, convertirlo
       console.log(`[${requestTimestamp}] Convirtiendo objeto processes a array`);
@@ -393,7 +424,13 @@ const saveMonitorData = async (req, res) => {
     console.error(error.stack);
     
     // Log de datos problemáticos para depuración
-    console.log('Datos USB problemáticos:', JSON.stringify(usbDevices, null, 2));
+    try {
+      if (typeof usbDevices !== 'undefined') {
+        console.log('Datos USB problemáticos:', JSON.stringify(usbDevices, null, 2));
+      }
+    } catch (logError) {
+      console.error('Error al imprimir datos USB problemáticos:', logError.message);
+    }
     
     res.status(500).json({ 
       message: 'Error al guardar datos de monitoreo', 
@@ -706,107 +743,6 @@ async function processDevices(playerId, devices) {
             };
           }
         }
-
-  const normalizeProcesses = (processes) => {
-  if (!Array.isArray(processes)) {
-    console.warn('Invalid processes data. Expected an array.');
-    return Array(10).fill({
-      name: "Desconocido",
-      pid: 0,
-      filePath: "N/A",
-      fileHash: "N/A",
-      fileVersion: "N/A",
-      isSigned: false,
-      memoryUsage: 0,
-      startTime: "N/A",
-      signatureInfo: "N/A",
-      suspicious: false
-    });
-  }
-
-  return processes.map((proc, index) => {
-    // Si el proceso es un objeto vacío o no válido, crear uno predeterminado
-    if (!proc || typeof proc !== 'object' || Object.keys(proc).length === 0) {
-      return {
-        name: `Proceso ${index}`,
-        pid: index,
-        filePath: "N/A",
-        fileHash: "N/A",
-        fileVersion: "N/A",
-        isSigned: false,
-        memoryUsage: 0,
-        startTime: "N/A",
-        signatureInfo: "N/A",
-        suspicious: false
-      };
-    }
-
-    // Datos de proceso normalizados con valores predeterminados explícitos
-    return {
-      name: proc.name || proc.Name || `Proceso ${index}`,
-      pid: typeof proc.pid === 'number' ? proc.pid : 
-           (typeof proc.Pid === 'number' ? proc.Pid : index),
-      filePath: proc.filePath || proc.FilePath || "N/A",
-      fileHash: proc.fileHash || proc.FileHash || "N/A",
-      fileVersion: proc.fileVersion || proc.FileVersion || "N/A",
-      isSigned: typeof proc.isSigned === 'boolean' ? proc.isSigned : 
-                (typeof proc.IsSigned === 'boolean' ? proc.IsSigned : false),
-      memoryUsage: typeof proc.memoryUsage === 'number' ? proc.memoryUsage : 
-                  (typeof proc.MemoryUsage === 'number' ? proc.MemoryUsage : 0),
-      startTime: proc.startTime || proc.StartTime || "N/A",
-      signatureInfo: proc.signatureInfo || proc.SignatureInfo || "N/A",
-      suspicious: typeof proc.suspicious === 'boolean' ? proc.suspicious : 
-                 (typeof proc.Suspicious === 'boolean' ? proc.Suspicious : false)
-    };
-  });
-};
-
-// Modificar saveMonitorData para generar procesos de ejemplo si no hay o son inválidos
-// Alrededor de la línea donde se procesan los procesos, agregar:
-
-// Asegurar que processes es un array válido incluso si está mal formado
-let validProcesses = [];
-if (Array.isArray(processes) && processes.length > 0) {
-  validProcesses = normalizeProcesses(processes);
-} else {
-  console.log(`[${requestTimestamp}] Generando procesos de ejemplo para ${activisionId}`);
-  // Generar algunos procesos de ejemplo para mostrar
-  validProcesses = [
-    {
-      name: "chrome.exe",
-      pid: 1234,
-      filePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-      fileVersion: "91.0.4472.124",
-      memoryUsage: 256000000,
-      isSigned: true,
-      startTime: new Date().toISOString(),
-      signatureInfo: "Google LLC",
-      suspicious: false
-    },
-    {
-      name: "discord.exe",
-      pid: 5678,
-      filePath: "C:\\Users\\User\\AppData\\Local\\Discord\\app-1.0.9002\\Discord.exe",
-      fileVersion: "1.0.9002",
-      memoryUsage: 128000000,
-      isSigned: true,
-      startTime: new Date().toISOString(),
-      signatureInfo: "Discord Inc.",
-      suspicious: false
-    },
-    {
-      name: "explorer.exe",
-      pid: 2468,
-      filePath: "C:\\Windows\\explorer.exe",
-      fileVersion: "10.0.19041.1",
-      memoryUsage: 50000000,
-      isSigned: true,
-      startTime: new Date().toISOString(),
-      signatureInfo: "Microsoft Corporation",
-      suspicious: false
-    }
-  ];
-}
 
         const createdDevice = await Device.create(newDevice);
         
