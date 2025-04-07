@@ -1,169 +1,55 @@
-// Path: frontend/src/components/players/ProcessList.jsx
-
 import React, { useState, useEffect } from 'react';
-import { 
-  CheckCircleIcon, 
-  ExclamationTriangleIcon, 
-  InformationCircleIcon 
-} from '@heroicons/react/24/outline';
 import { useSocket } from '../../context/SocketContext';
 
-// Version info to track updates
-const COMPONENT_VERSION = "2.1.0-20250406";
-
 const ProcessList = ({ processes: initialProcesses = [] }) => {
-  // Componente simple para procesos de depuración
-  const DebugProcessList = ({ processes }) => {
-    return (
-      <div className="p-4 bg-gray-100 rounded-md mb-4 text-xs font-mono overflow-auto max-h-40">
-        <div className="font-bold mb-2">Debug: ProcessList Received Data ({processes ? processes.length : 0} items)</div>
-        <pre>{JSON.stringify(processes, null, 2)}</pre>
-      </div>
-    );
-  };
-
   const [processes, setProcesses] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [showDebug, setShowDebug] = useState(true); // Activar depuración por defecto
-  const { socket, connected } = useSocket();
+  const [processType, setProcessType] = useState('all');
+  const { socket } = useSocket();
 
-  // Función para generar procesos de ejemplo si no hay datos reales
-  const generateSampleProcesses = () => {
-    return [
-      {
-        name: "chrome.exe",
-        pid: 1234,
-        filePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-        fileVersion: "91.0.4472.124",
-        memoryUsage: 256000000,
-        isSigned: true,
-        startTime: "2025-04-06 10:30:45"
-      },
-      {
-        name: "discord.exe",
-        pid: 5678,
-        filePath: "C:\\Users\\User\\AppData\\Local\\Discord\\app-1.0.9002\\Discord.exe",
-        fileVersion: "1.0.9002",
-        memoryUsage: 128000000,
-        isSigned: true,
-        startTime: "2025-04-06 11:15:22"
-      },
-      {
-        name: "unknown_tool.exe",
-        pid: 9012,
-        filePath: "C:\\Users\\User\\Downloads\\unknown_tool.exe",
-        fileVersion: "1.2.3",
-        memoryUsage: 45000000,
-        isSigned: false,
-        suspicious: true,
-        startTime: "2025-04-06 12:05:18"
-      }
+  // Función para clasificar procesos
+  const categorizeProcess = (process) => {
+    const systemProcessKeywords = [
+      'svchost', 'winlogon', 'system', 'csrss', 'lsass', 'explorer', 
+      'taskmgr', 'spoolsv', 'services', 'audiodg', 'dwm', 'searchindexer'
     ];
+
+    const processNameLower = process.name.toLowerCase();
+    return systemProcessKeywords.some(keyword => 
+      processNameLower.includes(keyword)) ? 'system' : 'user';
   };
 
-  // Función para normalizar procesos
-  const normalizeProcesses = (inputProcesses) => {
-    console.log("Normalizing processes, received data type:", typeof inputProcesses);
-    
-    if (!inputProcesses) {
-      console.warn("No se recibieron datos de procesos");
-      return [];
-    }
-    
-    if (!Array.isArray(inputProcesses)) {
-      console.warn("Los datos de procesos no son un array:", inputProcesses);
-      return [];
-    }
-    
-    return inputProcesses.map((proc, index) => {
-      if (!proc) {
-        return {
-          name: `Proceso ${index}`,
-          pid: index,
-          filePath: "N/A",
-          fileHash: "N/A",
-          fileVersion: "N/A",
-          isSigned: false,
-          memoryUsage: 0,
-          startTime: "N/A",
-          signatureInfo: "N/A",
-          suspicious: false
-        };
-      }
-      
-      return {
-        name: proc.name || proc.Name || `Proceso ${index}`,
-        pid: typeof proc.pid === 'number' ? proc.pid : 
-             (typeof proc.Pid === 'number' ? proc.Pid : index),
-        filePath: proc.filePath || proc.FilePath || "N/A",
-        fileHash: proc.fileHash || proc.FileHash || "N/A",
-        fileVersion: proc.fileVersion || proc.FileVersion || "N/A",
-        memoryUsage: typeof proc.memoryUsage === 'number' ? proc.memoryUsage : 
-                     (typeof proc.MemoryUsage === 'number' ? proc.MemoryUsage : 0),
-        isSigned: typeof proc.isSigned === 'boolean' ? proc.isSigned : 
-                  (typeof proc.IsSigned === 'boolean' ? proc.IsSigned : false),
-        startTime: proc.startTime || proc.StartTime || "N/A",
-        signatureInfo: proc.signatureInfo || proc.SignatureInfo || "N/A",
-        suspicious: typeof proc.suspicious === 'boolean' ? proc.suspicious : 
-                   (typeof proc.Suspicious === 'boolean' ? proc.Suspicious : false)
-      };
-    });
-  };
-
-  // Inicializar procesos al cargar el componente
+  // Normalizar y procesar procesos
   useEffect(() => {
-    console.log(`ProcessList v${COMPONENT_VERSION} inicializado`);
-    console.log("Datos iniciales recibidos:", initialProcesses);
-    
     try {
-      const normalizedProcesses = normalizeProcesses(initialProcesses);
-      console.log("Procesos normalizados:", normalizedProcesses);
-      
-      if (normalizedProcesses.length === 0) {
-        console.log("No se encontraron procesos válidos, usando datos de ejemplo");
-        setProcesses(generateSampleProcesses());
-      } else {
-        setProcesses(normalizedProcesses);
-      }
-    } catch (error) {
-      console.error("Error al procesar los datos iniciales:", error);
-      setProcesses(generateSampleProcesses());
-    }
-  }, []);
+      const normalizedProcesses = (initialProcesses || []).map(proc => ({
+        name: proc.name || 'Proceso desconocido',
+        filePath: proc.filePath || 'Ruta no disponible',
+        startTime: proc.startTime || 'Hora de inicio desconocida',
+        type: categorizeProcess(proc)
+      }));
 
-  // Actualizar cuando cambien los props
-  useEffect(() => {
-    console.log("Props de procesos actualizados:", initialProcesses);
-    
-    if (Array.isArray(initialProcesses) && initialProcesses.length > 0) {
-      try {
-        const normalizedProcesses = normalizeProcesses(initialProcesses);
-        console.log("Procesos actualizados normalizados:", normalizedProcesses);
-        setProcesses(normalizedProcesses);
-      } catch (error) {
-        console.error("Error al procesar nuevos datos:", error);
-      }
+      setProcesses(normalizedProcesses);
+    } catch (error) {
+      console.error('Error procesando procesos:', error);
+      setProcesses([]);
     }
   }, [initialProcesses]);
-  
-  // Escuchar actualizaciones en tiempo real de monitoreo
+
+  // Escuchar actualizaciones de socket
   useEffect(() => {
     if (!socket) return;
 
     const handleMonitorUpdate = (data) => {
-      console.log("Socket update received:", data);
-      
-      if (data && data.processes && Array.isArray(data.processes)) {
-        console.log(`Actualización de socket con ${data.processes.length} procesos`);
-        
-        try {
-          const normalizedProcesses = normalizeProcesses(data.processes);
-          console.log("Procesos de socket normalizados:", normalizedProcesses);
-          setProcesses(normalizedProcesses);
-        } catch (error) {
-          console.error("Error procesando actualización de socket:", error);
-        }
+      if (data.processes && Array.isArray(data.processes)) {
+        const normalizedProcesses = data.processes.map(proc => ({
+          name: proc.name || 'Proceso desconocido',
+          filePath: proc.filePath || 'Ruta no disponible',
+          startTime: proc.startTime || 'Hora de inicio desconocida',
+          type: categorizeProcess(proc)
+        }));
+
+        setProcesses(normalizedProcesses);
       }
     };
 
@@ -174,164 +60,92 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
     };
   }, [socket]);
 
-  // Get process threat level icon
-  const getProcessThreatLevel = (process) => {
-    if (!process) return 'unknown';
-    
-    if (process.isSigned === true) return 'trusted';
-    if (process.suspicious === true) return 'suspicious';
-    
-    return 'unknown';
-  };
-
-  // Render threat icon
-  const renderThreatIcon = (process) => {
-    const threatLevel = getProcessThreatLevel(process);
-    
-    switch (threatLevel) {
-      case 'trusted':
-        return <CheckCircleIcon className="h-5 w-5 text-success-500" />;
-      case 'suspicious':
-        return <ExclamationTriangleIcon className="h-5 w-5 text-warning-500" />;
-      case 'unknown':
-      default:
-        return <InformationCircleIcon className="h-5 w-5 text-primary-500" />;
-    }
-  };
-
-  // Get row color class
-  const getRowColorClass = (process) => {
-    const threatLevel = getProcessThreatLevel(process);
-    
-    switch (threatLevel) {
-      case 'trusted':
-        return 'bg-success-50';
-      case 'suspicious':
-        return 'bg-warning-50';
-      case 'unknown':
-      default:
-        return '';
-    }
-  };
-
-  // Filter processes
+  // Filtrar procesos
   const filteredProcesses = processes.filter(process => {
-    if (!process) return false;
-    
     const matchesSearch = !searchTerm || 
-      (process.name && process.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (process.filePath && process.filePath.toLowerCase().includes(searchTerm.toLowerCase()));
+      process.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      process.filePath.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesFilter = filterType === 'all' || 
-      (filterType === 'trusted' && process.isSigned === true) ||
-      (filterType === 'suspicious' && process.suspicious === true) ||
-      (filterType === 'unknown' && process.isSigned !== true);
+    const matchesType = processType === 'all' || process.type === processType;
     
-    return matchesSearch && matchesFilter;
+    return matchesSearch && matchesType;
   });
 
   return (
     <div className="space-y-4">
+      {/* Controles de filtro */}
       <div className="flex justify-between items-center">
-        <div className="flex flex-col space-y-3 md:flex-row md:items-center md:space-x-4 md:space-y-0">
-          {/* Search */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Buscar proceso..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="form-input pr-10"
-            />
-          </div>
+        <div className="flex space-x-4">
+          {/* Búsqueda */}
+          <input
+            type="text"
+            placeholder="Buscar proceso..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="form-input"
+          />
           
-          {/* Filter */}
+          {/* Filtro por tipo de proceso */}
           <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
+            value={processType}
+            onChange={(e) => setProcessType(e.target.value)}
             className="form-input"
           >
             <option value="all">Todos los procesos</option>
-            <option value="trusted">Procesos Confiables</option>
-            <option value="suspicious">Procesos Sospechosos</option>
-            <option value="unknown">Procesos Desconocidos</option>
+            <option value="system">Procesos del Sistema</option>
+            <option value="user">Procesos de Usuario</option>
           </select>
         </div>
         
-        <div className="flex items-center space-x-2">
-          <div className="text-right text-sm text-gray-500">
-            {filteredProcesses.length} procesos
-          </div>
-          <button 
-            onClick={() => setShowDebug(!showDebug)}
-            className="text-xs bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
-          >
-            {showDebug ? 'Ocultar Debug' : 'Ver Debug'}
-          </button>
+        <div className="text-sm text-gray-500">
+          {filteredProcesses.length} procesos
         </div>
       </div>
       
-      {/* Debug panel */}
-      {showDebug && (
-        <DebugProcessList processes={initialProcesses} />
-      )}
-      
-      {/* Handle various error states */}
-      {!Array.isArray(processes) ? (
-        <div className="rounded-md bg-danger-50 p-6 text-center">
-          <p className="text-danger-500">Error: Los datos de procesos no son válidos</p>
-          <p className="text-sm text-gray-500 mt-2">Tipo recibido: {typeof processes}</p>
-        </div>
-      ) : processes.length === 0 ? (
+      {/* Lista de procesos */}
+      {filteredProcesses.length === 0 ? (
         <div className="rounded-md bg-gray-50 p-6 text-center">
-          <p className="text-gray-500">No hay datos de procesos disponibles</p>
+          <p className="text-gray-500">No hay procesos que coincidan con los filtros</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proceso</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ruta del Archivo</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Memoria</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Versión</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ruta de Ejecución</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hora de Inicio</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredProcesses.map((process, index) => (
-                <tr 
-                  key={index} 
-                  className={`${getRowColorClass(process)} hover:bg-opacity-75`}
+                <tr key={index} 
+                    className={`
+                      ${process.type === 'system' 
+                        ? 'bg-gray-50 hover:bg-gray-100' 
+                        : 'hover:bg-gray-50'
+                      }`
+                    }
                 >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {renderThreatIcon(process)}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {process.name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate max-w-xs">
+                    {process.filePath}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {process.startTime}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {process.name || 'Desconocido'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">{process.pid || 'N/A'}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500 truncate max-w-xs">
-                      {process.filePath || 'N/A'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">
-                      {process.memoryUsage 
-                        ? `${(process.memoryUsage / (1024 * 1024)).toFixed(2)} MB` 
-                        : 'N/A'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">
-                      {process.fileVersion || 'N/A'}
-                    </div>
+                    <span className={`
+                      inline-flex rounded-full px-2 py-1 text-xs font-medium
+                      ${process.type === 'system' 
+                        ? 'bg-gray-100 text-gray-800' 
+                        : 'bg-primary-100 text-primary-800'}
+                    `}>
+                      {process.type === 'system' ? 'Sistema' : 'Usuario'}
+                    </span>
                   </td>
                 </tr>
               ))}
