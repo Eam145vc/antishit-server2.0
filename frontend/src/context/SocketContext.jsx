@@ -129,11 +129,25 @@ export const SocketProvider = ({ children }) => {
   const requestScreenshot = (activisionId, channelId) => {
     if (socket && connected) {
       console.log(`Solicitando captura para ${activisionId} en canal ${channelId}`);
+      
+      // Emitir el evento con la información necesaria
       socket.emit('request-screenshot', { activisionId, channelId });
+      
+      // Mensaje de confirmación
       toast.success(`Solicitando captura para ${activisionId}`);
+      
+      // Registrar en consola
+      console.log('Evento socket emitido: request-screenshot');
+      
       return true;
     }
-    console.warn('No se pudo solicitar captura - socket no conectado');
+    
+    // Mensaje de error si no hay conexión
+    console.warn('No se pudo solicitar captura - socket no conectado', {
+      socketExists: !!socket,
+      connected: connected
+    });
+    
     toast.error('No hay conexión en tiempo real');
     return false;
   };
