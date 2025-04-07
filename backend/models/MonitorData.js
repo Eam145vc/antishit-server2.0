@@ -41,7 +41,7 @@ const monitorDataSchema = new mongoose.Schema({
   pcStartTime: String,
   processes: [{
     name: String,
-    pid: Number,
+    pid: Number,        // Este campo coincidirá con processId del cliente
     filePath: String,
     fileHash: String,
     commandLine: String,
