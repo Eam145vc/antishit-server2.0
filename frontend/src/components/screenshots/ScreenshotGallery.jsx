@@ -82,8 +82,33 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         const response = await axios.get(url, { headers });
         console.log('Respuesta de capturas:', response.data);
         
-        setScreenshots(response.data);
-        setFilteredScreenshots(response.data);
+        // Preparar capturas con imágenes
+        const preparedScreenshots = await Promise.all(
+          response.data.map(async (screenshot) => {
+            try {
+              const imageResponse = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
+              
+              // Asegurar que la imagen tenga el prefijo correcto
+              const base64Image = imageResponse.data.imageData.startsWith('data:image')
+                ? imageResponse.data.imageData
+                : `data:image/png;base64,${imageResponse.data.imageData}`;
+              
+              return {
+                ...screenshot,
+                imageData: base64Image
+              };
+            } catch (imageError) {
+              console.error(`Error cargando imagen para screenshot ${screenshot._id}:`, imageError);
+              return {
+                ...screenshot,
+                imageData: null
+              };
+            }
+          })
+        );
+        
+        setScreenshots(preparedScreenshots);
+        setFilteredScreenshots(preparedScreenshots);
         setError(null);
       } catch (err) {
         console.error('Error al cargar capturas de pantalla:', err);
@@ -127,9 +152,15 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       };
       
       const response = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
+      
+      // Asegurar que la imagen tenga el prefijo correcto
+      const base64Image = response.data.imageData.startsWith('data:image')
+        ? response.data.imageData
+        : `data:image/png;base64,${response.data.imageData}`;
+      
       setSelectedScreenshot({
         ...screenshot,
-        imageData: response.data.imageData
+        imageData: base64Image
       });
     } catch (error) {
       console.error('Error al cargar imagen:', error);
@@ -137,7 +168,10 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     }
   };
   
-  // Resto del código es similar al anterior...
+  // Cerrar modal de captura de pantalla
+  const closeScreenshotModal = () => {
+    setSelectedScreenshot(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -179,7 +213,95 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         </div>
       </div>
       
-      {/* Resto del código anterior... */}
+      {/* Mensaje de carga */}
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        </div>
+      ) : error ? (
+        <div className="rounded-md bg-danger-50 p-4">
+          <div className="flex items-center">
+            <ExclamationTriangleIcon className="h-5 w-5 text-danger-400 mr-3" />
+            <p className="text-danger-800">{error}</p>
+          </div>
+        </div>
+      ) : filteredScreenshots.length === 0 ? (
+        <div className="rounded-md bg-gray-50 p-6 text-center">
+          <UserGroupIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-500">No hay capturas de pantalla disponibles</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filteredScreenshots.map((screenshot) => (
+            <div 
+              key={screenshot._id} 
+              className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => openScreenshotModal(screenshot)}
+            >
+              {screenshot.imageData ? (
+                <img 
+                  src={screenshot.imageData} 
+                  alt={`Captura de ${screenshot.activisionId}`}
+                  className="w-full h-48 object-cover"
+                />
+              ) : (
+                <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
+                  <p className="text-gray-500">Sin imagen</p>
+                </div>
+              )}
+              
+              <div className="p-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-900">
+                    {screenshot.activisionId}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {formatDistanceToNow(new Date(screenshot.capturedAt), {
+                      addSuffix: true,
+                      locale: es
+                    })}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-gray-500">
+                  Canal {screenshot.channelId}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal de captura de pantalla */}
+      {selectedScreenshot && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
+          onClick={closeScreenshotModal}
+        >
+          <div 
+            className="max-w-4xl max-h-[90vh] overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img 
+              src={selectedScreenshot.imageData} 
+              alt={`Captura de ${selectedScreenshot.activisionId}`}
+              className="max-w-full max-h-[90vh] object-contain"
+            />
+            <div className="mt-4 text-center text-white">
+              <p>
+                Captura de {selectedScreenshot.activisionId} - 
+                Canal {selectedScreenshot.channelId} - 
+                {new Date(selectedScreenshot.capturedAt).toLocaleString()}
+              </p>
+              <Link 
+                to={`/screenshots/${selectedScreenshot._id}`}
+                className="mt-2 inline-block text-primary-300 hover:text-primary-100"
+              >
+                Ver detalles completos
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
