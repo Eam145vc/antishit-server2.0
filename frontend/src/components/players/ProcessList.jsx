@@ -5,6 +5,7 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
   const [processes, setProcesses] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [processType, setProcessType] = useState('all');
+  const [showDebug, setShowDebug] = useState(false);
   const { socket } = useSocket();
 
   // Función para clasificar procesos
@@ -25,6 +26,7 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
       const normalizedProcesses = (initialProcesses || []).map(proc => ({
         name: proc.name || 'Proceso desconocido',
         filePath: proc.filePath || 'Ruta no disponible',
+        commandLine: proc.commandLine || 'Línea de comando no disponible',
         startTime: proc.startTime || 'Hora de inicio desconocida',
         type: categorizeProcess(proc)
       }));
@@ -45,6 +47,7 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
         const normalizedProcesses = data.processes.map(proc => ({
           name: proc.name || 'Proceso desconocido',
           filePath: proc.filePath || 'Ruta no disponible',
+          commandLine: proc.commandLine || 'Línea de comando no disponible',
           startTime: proc.startTime || 'Hora de inicio desconocida',
           type: categorizeProcess(proc)
         }));
@@ -64,12 +67,20 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
   const filteredProcesses = processes.filter(process => {
     const matchesSearch = !searchTerm || 
       process.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      process.filePath.toLowerCase().includes(searchTerm.toLowerCase());
+      process.commandLine.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesType = processType === 'all' || process.type === processType;
     
     return matchesSearch && matchesType;
   });
+
+  // Debug component para mostrar datos completos del proceso
+  const DebugProcessList = () => (
+    <div className="p-4 bg-gray-100 rounded-md mb-4 text-xs font-mono overflow-auto max-h-40">
+      <div className="font-bold mb-2">Debug: ProcessList Raw Data ({processes.length} items)</div>
+      <pre>{JSON.stringify(initialProcesses, null, 2)}</pre>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -97,10 +108,21 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
           </select>
         </div>
         
-        <div className="text-sm text-gray-500">
-          {filteredProcesses.length} procesos
+        <div className="flex items-center space-x-2">
+          <div className="text-sm text-gray-500">
+            {filteredProcesses.length} procesos
+          </div>
+          <button 
+            onClick={() => setShowDebug(!showDebug)}
+            className="text-xs bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
+          >
+            {showDebug ? 'Ocultar Debug' : 'Ver Debug'}
+          </button>
         </div>
       </div>
+
+      {/* Debug panel */}
+      {showDebug && <DebugProcessList />}
       
       {/* Lista de procesos */}
       {filteredProcesses.length === 0 ? (
@@ -113,7 +135,7 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ruta de Ejecución</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Línea de Comando</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hora de Inicio</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
               </tr>
@@ -132,7 +154,7 @@ const ProcessList = ({ processes: initialProcesses = [] }) => {
                     {process.name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate max-w-xs">
-                    {process.filePath}
+                    {process.commandLine}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {process.startTime}
