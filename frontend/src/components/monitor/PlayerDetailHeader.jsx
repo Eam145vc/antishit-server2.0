@@ -34,11 +34,23 @@ const PlayerDetailHeader = ({ player = {} }) => {
   
   const handleRequestScreenshot = async () => {
     try {
-      const result = requestScreenshot(activisionId, currentChannelId);
-      result 
-        ? toast.success(`Captura solicitada para ${activisionId}`)
-        : toast.error('No se pudo solicitar la captura');
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
+      const token = localStorage.getItem('token');
+      
+      const response = await axios.post(`${apiUrl}/screenshots/request`, {
+        activisionId,
+        channelId: currentChannelId
+      }, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+  
+      if (response.data.success) {
+        toast.success(`Captura solicitada para ${activisionId}`);
+      } else {
+        toast.error('No se pudo solicitar la captura');
+      }
     } catch (error) {
+      console.error('Error al solicitar captura:', error);
       toast.error('Error al solicitar captura');
     }
   };
