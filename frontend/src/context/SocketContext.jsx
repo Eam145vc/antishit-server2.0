@@ -131,13 +131,22 @@ export const SocketProvider = ({ children }) => {
       console.log(`Solicitando captura para ${activisionId} en canal ${channelId}`);
       
       // Emitir el evento con la información necesaria
-      socket.emit('request-screenshot', { activisionId, channelId });
+      socket.emit('request-screenshot', { 
+        activisionId, 
+        channelId,
+        requestedBy: user.name,
+        timestamp: new Date()
+      });
       
       // Mensaje de confirmación
       toast.success(`Solicitando captura para ${activisionId}`);
       
-      // Registrar en consola
-      console.log('Evento socket emitido: request-screenshot');
+      // Registrar en consola para depuración
+      console.log('Evento socket emitido: request-screenshot', {
+        activisionId, 
+        channelId,
+        requestedBy: user.name
+      });
       
       return true;
     }
@@ -148,14 +157,20 @@ export const SocketProvider = ({ children }) => {
       connected: connected
     });
     
-    toast.error('No hay conexión en tiempo real');
+    toast.error('No hay conexión en tiempo real para solicitar captura');
     return false;
   };
   
   // Función para cambiar canal de jugador
   const changePlayerChannel = (activisionId, fromChannel, toChannel) => {
     if (socket && connected) {
-      socket.emit('change-player-channel', { activisionId, fromChannel, toChannel });
+      socket.emit('change-player-channel', { 
+        activisionId, 
+        fromChannel, 
+        toChannel,
+        // Agregar quién realizó el cambio
+        changedBy: user?.name || 'Juez' 
+      });
       toast.success(`Moviendo a ${activisionId} al canal ${toChannel}`);
       return true;
     }
