@@ -70,22 +70,36 @@ const socketSetup = (server) => {
     });
 
     // Manejar solicitud de captura remota
-    socket.on('request-screenshot', ({ activisionId, channelId }) => {
+    socket.on('request-screenshot', ({ activisionId, channelId, requestedBy }) => {
+      // Mejorado: Logging detallado para debug
+      console.log(`[SOCKET] ${socket.user.name} solicitó captura para ${activisionId} en canal ${channelId}`);
+
+      // Enviar el evento a todos los clientes en ese canal específico
       io.to(`channel:${channelId}`).emit('take-screenshot', {
-        requestedBy: socket.user.name,
+        requestedBy: requestedBy || socket.user.name,
         activisionId,
         timestamp: new Date()
       });
-      console.log(`${socket.user.name} solicitó captura para ${activisionId} en canal ${channelId}`);
+
+      // Emitir una alerta para notificar a otros jueces
+      io.to(`channel:${channelId}`).emit('new-alert', {
+        type: 'screenshot-request',
+        message: `Captura solicitada para ${activisionId}`,
+        activisionId,
+        channelId,
+        requestedBy: requestedBy || socket.user.name,
+        severity: 'info',
+        timestamp: new Date()
+      });
     });
 
     // Manejar cambio de canal para jugador
-    socket.on('change-player-channel', ({ activisionId, fromChannel, toChannel }) => {
+    socket.on('change-player-channel', ({ activisionId, fromChannel, toChannel, changedBy }) => {
       io.to(`channel:${fromChannel}`).emit('player-channel-changed', {
         activisionId,
         fromChannel,
         toChannel,
-        changedBy: socket.user.name,
+        changedBy: changedBy || socket.user.name,
         timestamp: new Date()
       });
       
@@ -94,7 +108,7 @@ const socketSetup = (server) => {
         activisionId,
         fromChannel,
         toChannel,
-        changedBy: socket.user.name,
+        changedBy: changedBy || socket.user.name,
         timestamp: new Date()
       });
       
