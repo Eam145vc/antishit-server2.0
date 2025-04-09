@@ -32,7 +32,8 @@ const PlayerDetailHeader = ({ player = {} }) => {
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
   const isReallyOnline = isOnline && lastSeenDate > fiveMinutesAgo;
   
-  const handleRequestScreenshot = async () => {
+  // Función de respaldo que usa HTTP directo (actual implementación)
+  const handleRequestScreenshotFallback = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
       const token = localStorage.getItem('token');
@@ -52,6 +53,14 @@ const PlayerDetailHeader = ({ player = {} }) => {
     } catch (error) {
       console.error('Error al solicitar captura:', error);
       toast.error('Error al solicitar captura');
+    }
+  };
+  
+  // Función para solicitar captura usando el socket y, en caso de fallo, por HTTP
+  const handleRequestScreenshot = () => {
+    const success = requestScreenshot(activisionId, currentChannelId);
+    if (!success) {
+      handleRequestScreenshotFallback();
     }
   };
   
@@ -78,7 +87,7 @@ const PlayerDetailHeader = ({ player = {} }) => {
       : 'bg-warning-100 text-warning-800';
   };
   
-  // Obtener texto de estado
+  // Función para obtener el texto del estado
   const getStatusText = () => {
     if (!isReallyOnline) return 'Desconectado';
     return isGameRunning ? 'Jugando' : 'Conectado';
@@ -146,9 +155,7 @@ const PlayerDetailHeader = ({ player = {} }) => {
             <div className="flex items-center">
               <ComputerDesktopIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
               <span className="ml-2 text-sm font-medium text-gray-500">Estado:</span>
-              <span
-                className={`ml-2 inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${getStatusClasses()}`}
-              >
+              <span className={`ml-2 inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${getStatusClasses()}`}>
                 {getStatusText()}
               </span>
             </div>
