@@ -7,7 +7,8 @@ const {
   getScreenshotById,
   addNoteToScreenshot,
   getPlayerScreenshots,
-  getScreenshotImage
+  getScreenshotImage,
+  checkScreenshotRequests
 } = require('../controllers/screenshotController');
 const { protect } = require('../middleware/auth');
 
@@ -18,6 +19,7 @@ router.get('/player/:id', protect, getPlayerScreenshots);
 router.get('/:id', protect, getScreenshotById);
 router.get('/:id/image', protect, getScreenshotImage);
 router.put('/:id/notes', protect, addNoteToScreenshot);
+router.get('/check-requests', checkScreenshotRequests); // Nueva ruta (sin auth para permitir al cliente verificar)
 
 // Punto de compatibilidad para la API del cliente que usa la ruta en singular
 router.post('/screenshot', saveScreenshot);
