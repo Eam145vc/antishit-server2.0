@@ -242,11 +242,44 @@ const getPlayerScreenshots = async (req, res) => {
 };
 
 module.exports = {
+
   saveScreenshot,
   requestScreenshot,
   getScreenshots,
   getScreenshotById,
   addNoteToScreenshot,
   getPlayerScreenshots,
-  getScreenshotImage
+  getScreenshotImage,
+  checkScreenshotRequests
+};
+
+// @desc    Verificar si hay solicitudes de capturas pendientes
+// @route   GET /api/screenshots/check-requests
+// @access  Público (desde cliente anti-cheat)
+const checkScreenshotRequests = async (req, res) => {
+  try {
+    const { activisionId, channelId } = req.query;
+    
+    if (!activisionId || !channelId) {
+      return res.status(400).json({ hasRequest: false, message: 'Parámetros incompletos' });
+    }
+    
+    // Verificar en caché/memoria si hay una solicitud pendiente para este jugador
+    if (!global.screenshotRequests) {
+      global.screenshotRequests = {};
+    }
+    
+    const key = `${activisionId}-${channelId}`;
+    const hasRequest = !!global.screenshotRequests[key];
+    
+    if (hasRequest) {
+      console.log(`[SCREENSHOT] Solicitud pendiente encontrada para ${activisionId} en canal ${channelId}`);
+      delete global.screenshotRequests[key];
+    }
+    
+    res.json({ hasRequest });
+  } catch (error) {
+    console.error('Error verificando solicitudes de captura:', error);
+    res.status(500).json({ hasRequest: false, message: error.message });
+  }
 };
