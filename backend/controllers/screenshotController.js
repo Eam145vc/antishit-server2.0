@@ -79,6 +79,39 @@ const saveScreenshot = async (req, res) => {
   }
 };
 
+// @desc    Verificar si hay solicitudes de capturas pendientes
+// @route   GET /api/screenshots/check-requests
+// @access  Público (desde cliente anti-cheat)
+const checkScreenshotRequests = async (req, res) => {
+  try {
+    const { activisionId, channelId } = req.query;
+    
+    if (!activisionId || !channelId) {
+      return res.status(400).json({ hasRequest: false, message: 'Parámetros incompletos' });
+    }
+    
+    // Verificar en caché/memoria si hay una solicitud pendiente para este jugador
+    // Usamos una caché global temporal para almacenar solicitudes
+    if (!global.screenshotRequests) {
+      global.screenshotRequests = {};
+    }
+    
+    const key = `${activisionId}-${channelId}`;
+    const hasRequest = !!global.screenshotRequests[key];
+    
+    // Si hay una solicitud, la eliminamos para que no se procese de nuevo
+    if (hasRequest) {
+      console.log(`[SCREENSHOT] Solicitud pendiente encontrada para ${activisionId} en canal ${channelId}`);
+      delete global.screenshotRequests[key];
+    }
+    
+    res.json({ hasRequest });
+  } catch (error) {
+    console.error('Error verificando solicitudes de captura:', error);
+    res.status(500).json({ hasRequest: false, message: error.message });
+  }
+};
+
 // @desc    Solicitar captura de pantalla remota
 // @route   POST /api/screenshots/request
 // @access  Privado
@@ -98,10 +131,23 @@ const requestScreenshot = async (req, res) => {
       return res.status(404).json({ message: 'Jugador no encontrado' });
     }
     
+    // Almacenar la solicitud en memoria global para que el cliente la recoja
+    if (!global.screenshotRequests) {
+      global.screenshotRequests = {};
+    }
+    
+    const key = `${activisionId}-${channelId}`;
+    global.screenshotRequests[key] = {
+      timestamp: new Date(),
+      requestedBy: req.user?.name || 'Unknown'
+    };
+    
+    console.log(`[SCREENSHOT] Nueva solicitud almacenada para ${activisionId} en canal ${channelId} por ${req.user?.name || 'Unknown'}`);
+    
     // Emitir solicitud de captura a través de socket.io
     global.io?.to(`channel:${channelId}`).emit('take-screenshot', {
       activisionId,
-      requestedBy: req.user.name,
+      requestedBy: req.user?.name || 'Unknown',
       timestamp: new Date()
     });
     
@@ -198,7 +244,9 @@ const getScreenshotImage = async (req, res) => {
   }
 };
 
-// Resto de los métodos (agregación de notas, etc.)
+// @desc    Añadir nota a captura de pantalla
+// @route   PUT /api/screenshots/:id/notes
+// @access  Privado
 const addNoteToScreenshot = async (req, res) => {
   try {
     const { notes } = req.body;
@@ -218,6 +266,9 @@ const addNoteToScreenshot = async (req, res) => {
   }
 };
 
+// @desc    Obtener capturas de un jugador
+// @route   GET /api/screenshots/player/:id
+// @access  Privado
 const getPlayerScreenshots = async (req, res) => {
   try {
     const { limit = 20 } = req.query;
@@ -241,8 +292,8 @@ const getPlayerScreenshots = async (req, res) => {
   }
 };
 
+// Exportar todas las funciones
 module.exports = {
-
   saveScreenshot,
   requestScreenshot,
   getScreenshots,
@@ -250,36 +301,5 @@ module.exports = {
   addNoteToScreenshot,
   getPlayerScreenshots,
   getScreenshotImage,
-  checkScreenshotRequests
-};
-
-// @desc    Verificar si hay solicitudes de capturas pendientes
-// @route   GET /api/screenshots/check-requests
-// @access  Público (desde cliente anti-cheat)
-const checkScreenshotRequests = async (req, res) => {
-  try {
-    const { activisionId, channelId } = req.query;
-    
-    if (!activisionId || !channelId) {
-      return res.status(400).json({ hasRequest: false, message: 'Parámetros incompletos' });
-    }
-    
-    // Verificar en caché/memoria si hay una solicitud pendiente para este jugador
-    if (!global.screenshotRequests) {
-      global.screenshotRequests = {};
-    }
-    
-    const key = `${activisionId}-${channelId}`;
-    const hasRequest = !!global.screenshotRequests[key];
-    
-    if (hasRequest) {
-      console.log(`[SCREENSHOT] Solicitud pendiente encontrada para ${activisionId} en canal ${channelId}`);
-      delete global.screenshotRequests[key];
-    }
-    
-    res.json({ hasRequest });
-  } catch (error) {
-    console.error('Error verificando solicitudes de captura:', error);
-    res.status(500).json({ hasRequest: false, message: error.message });
-  }
+  checkScreenshotRequests // Ahora está definida antes de ser exportada
 };
