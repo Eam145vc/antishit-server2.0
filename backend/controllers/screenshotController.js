@@ -3,23 +3,31 @@ const Screenshot = require('../models/Screenshot');
 const Player = require('../models/Player');
 const { emitAlert } = require('../utils/socket');
 
-// @desc    Guardar nueva captura de pantalla
+// Global cache for pending screenshot requests
+if (!global.screenshotRequests) {
+  global.screenshotRequests = {};
+}
+
+// @desc    Save new screenshot
 // @route   POST /api/screenshots
-// @access  Público (desde cliente anti-cheat)
+// @access  Public (from anti-cheat client)
 const saveScreenshot = async (req, res) => {
   try {
     const { activisionId, channelId, screenshot, timestamp } = req.body;
     
-    // Verificar campos requeridos
+    // Verify required fields
     if (!activisionId || !channelId || !screenshot) {
-      return res.status(400).json({ message: 'Faltan campos requeridos' });
+      return res.status(400).json({ message: 'Missing required fields' });
     }
     
-    // Buscar o crear jugador
+    // Log for debugging
+    console.log(`[SCREENSHOT] Receiving screenshot for ${activisionId} in channel ${channelId}`);
+    
+    // Find or create player
     let player = await Player.findOne({ activisionId });
     
     if (!player) {
-      // Si no existe el jugador, crearlo
+      // If player doesn't exist, create them
       player = await Player.create({
         activisionId,
         currentChannelId: channelId,
@@ -27,21 +35,21 @@ const saveScreenshot = async (req, res) => {
         lastSeen: new Date()
       });
     } else {
-      // Actualizar campos de jugador
+      // Update player fields
       player.lastSeen = new Date();
       player.currentChannelId = channelId;
       await player.save();
     }
     
-    // Verificar y normalizar datos de imagen
+    // Normalize and verify image data
     let imageData = screenshot;
     
-    // Si no tiene prefijo base64, añadirlo
+    // If it doesn't have base64 prefix, add it
     if (!imageData.startsWith('data:image')) {
       imageData = `data:image/png;base64,${imageData}`;
     }
     
-    // Guardar captura de pantalla
+    // Save screenshot
     const newScreenshot = await Screenshot.create({
       player: player._id,
       activisionId,
@@ -50,7 +58,7 @@ const saveScreenshot = async (req, res) => {
       capturedAt: timestamp || new Date()
     });
     
-    // Emitir evento de nueva captura
+    // Emit event for new screenshot
     global.io?.to(`channel:${channelId}`).emit('new-screenshot', {
       id: newScreenshot._id,
       activisionId,
@@ -58,80 +66,81 @@ const saveScreenshot = async (req, res) => {
       timestamp: newScreenshot.capturedAt
     });
     
-    // Emitir alerta
+    // Emit alert
     emitAlert({
       type: 'screenshot-taken',
       playerId: player._id,
       activisionId,
       channelId,
-      message: `Nueva captura de pantalla de ${activisionId}`,
+      message: `New screenshot from ${activisionId}`,
       severity: 'info',
       timestamp: newScreenshot.capturedAt
     });
+    
+    console.log(`[SCREENSHOT] Successfully saved screenshot with ID: ${newScreenshot._id}`);
     
     res.status(201).json({
       success: true,
       id: newScreenshot._id
     });
   } catch (error) {
-    console.error('Error al guardar screenshot:', error);
+    console.error('Error saving screenshot:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Verificar si hay solicitudes de capturas pendientes
+// @desc    Check if there are pending screenshot requests
 // @route   GET /api/screenshots/check-requests
-// @access  Público (desde cliente anti-cheat)
+// @access  Public (from anti-cheat client)
 const checkScreenshotRequests = async (req, res) => {
   try {
     const { activisionId, channelId } = req.query;
     
     if (!activisionId || !channelId) {
-      return res.status(400).json({ hasRequest: false, message: 'Parámetros incompletos' });
+      return res.status(400).json({ hasRequest: false, message: 'Incomplete parameters' });
     }
     
-    // Verificar en caché/memoria si hay una solicitud pendiente para este jugador
-    // Usamos una caché global temporal para almacenar solicitudes
-    if (!global.screenshotRequests) {
-      global.screenshotRequests = {};
-    }
+    console.log(`[SCREENSHOT] Client checking for requests: ${activisionId} in channel ${channelId}`);
     
+    // Check in global cache if there's a pending request for this player
     const key = `${activisionId}-${channelId}`;
     const hasRequest = !!global.screenshotRequests[key];
     
-    // Si hay una solicitud, la eliminamos para que no se procese de nuevo
+    // If there is a request, remove it so it won't be processed again
     if (hasRequest) {
-      console.log(`[SCREENSHOT] Solicitud pendiente encontrada para ${activisionId} en canal ${channelId}`);
+      console.log(`[SCREENSHOT] Pending request found for ${activisionId} in channel ${channelId}`);
       delete global.screenshotRequests[key];
+    } else {
+      console.log(`[SCREENSHOT] No pending requests for ${activisionId} in channel ${channelId}`);
     }
     
     res.json({ hasRequest });
   } catch (error) {
-    console.error('Error verificando solicitudes de captura:', error);
+    console.error('Error checking screenshot requests:', error);
     res.status(500).json({ hasRequest: false, message: error.message });
   }
 };
 
-// @desc    Solicitar captura de pantalla remota
+// @desc    Request remote screenshot
 // @route   POST /api/screenshots/request
-// @access  Privado
+// @access  Private
 const requestScreenshot = async (req, res) => {
   try {
     const { activisionId, channelId } = req.body;
     
-    // Verificar campos requeridos
+    // Verify required fields
     if (!activisionId || !channelId) {
-      return res.status(400).json({ message: 'Faltan campos requeridos' });
+      return res.status(400).json({ message: 'Missing required fields' });
     }
     
-    // Buscar jugador
+    // Find player
     const player = await Player.findOne({ activisionId });
     
     if (!player) {
-      return res.status(404).json({ message: 'Jugador no encontrado' });
+      return res.status(404).json({ message: 'Player not found' });
     }
     
-    // Almacenar la solicitud en memoria global para que el cliente la recoja
+    // Store the request in memory for the client to pick up
     if (!global.screenshotRequests) {
       global.screenshotRequests = {};
     }
@@ -142,44 +151,44 @@ const requestScreenshot = async (req, res) => {
       requestedBy: req.user?.name || 'Unknown'
     };
     
-    console.log(`[SCREENSHOT] Nueva solicitud almacenada para ${activisionId} en canal ${channelId} por ${req.user?.name || 'Unknown'}`);
+    console.log(`[SCREENSHOT] New request stored for ${activisionId} in channel ${channelId} by ${req.user?.name || 'Unknown'}`);
     
-    // Emitir solicitud de captura a través de socket.io
+    // Emit screenshot request through socket.io
     global.io?.to(`channel:${channelId}`).emit('take-screenshot', {
       activisionId,
       requestedBy: req.user?.name || 'Unknown',
       timestamp: new Date()
     });
     
-    // Emitir alerta de solicitud de captura
+    // Emit alert for screenshot request
     emitAlert({
       type: 'screenshot-request',
       playerId: player._id,
       activisionId,
       channelId,
-      message: `Captura de pantalla solicitada para ${activisionId}`,
+      message: `Screenshot requested for ${activisionId}`,
       severity: 'info',
       timestamp: new Date()
     });
     
     res.json({
       success: true,
-      message: 'Solicitud de captura enviada'
+      message: 'Screenshot request sent'
     });
   } catch (error) {
-    console.error('Error al solicitar captura:', error);
+    console.error('Error requesting screenshot:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Obtener últimas capturas de pantalla
+// @desc    Get all screenshots
 // @route   GET /api/screenshots
-// @access  Privado
+// @access  Private
 const getScreenshots = async (req, res) => {
   try {
     const { limit = 20, activisionId, channelId } = req.query;
     
-    // Construir filtro según parámetros
+    // Build filter based on parameters
     const filter = {};
     
     if (activisionId) {
@@ -190,11 +199,11 @@ const getScreenshots = async (req, res) => {
       filter.channelId = parseInt(channelId);
     }
     
-    // Obtener capturas con paginación
+    // Get screenshots with pagination
     const screenshots = await Screenshot.find(filter)
       .sort({ capturedAt: -1 })
       .limit(parseInt(limit))
-      .select('-imageData') // Excluir datos binarios grandes
+      .select('-imageData') // Exclude large binary data
       .populate('player', 'activisionId');
     
     res.json(screenshots);
@@ -203,9 +212,9 @@ const getScreenshots = async (req, res) => {
   }
 };
 
-// @desc    Obtener una captura de pantalla por ID
+// @desc    Get a screenshot by ID
 // @route   GET /api/screenshots/:id
-// @access  Privado
+// @access  Private
 const getScreenshotById = async (req, res) => {
   try {
     const screenshot = await Screenshot.findById(req.params.id)
@@ -213,7 +222,7 @@ const getScreenshotById = async (req, res) => {
       .populate('requestedBy', 'name');
     
     if (!screenshot) {
-      return res.status(404).json({ message: 'Captura no encontrada' });
+      return res.status(404).json({ message: 'Screenshot not found' });
     }
     
     res.json(screenshot);
@@ -222,18 +231,18 @@ const getScreenshotById = async (req, res) => {
   }
 };
 
-// @desc    Obtener imagen de la captura de pantalla
+// @desc    Get image of a screenshot
 // @route   GET /api/screenshots/:id/image
-// @access  Privado
+// @access  Private
 const getScreenshotImage = async (req, res) => {
   try {
     const screenshot = await Screenshot.findById(req.params.id);
     
     if (!screenshot) {
-      return res.status(404).json({ message: 'Captura no encontrada' });
+      return res.status(404).json({ message: 'Screenshot not found' });
     }
     
-    // Garantizar que la imagen tenga el prefijo correcto
+    // Ensure the image has the correct prefix
     const imageData = screenshot.imageData.startsWith('data:image')
       ? screenshot.imageData
       : `data:image/png;base64,${screenshot.imageData}`;
@@ -244,9 +253,9 @@ const getScreenshotImage = async (req, res) => {
   }
 };
 
-// @desc    Añadir nota a captura de pantalla
+// @desc    Add note to a screenshot
 // @route   PUT /api/screenshots/:id/notes
-// @access  Privado
+// @access  Private
 const addNoteToScreenshot = async (req, res) => {
   try {
     const { notes } = req.body;
@@ -254,7 +263,7 @@ const addNoteToScreenshot = async (req, res) => {
     const screenshot = await Screenshot.findById(req.params.id);
     
     if (!screenshot) {
-      return res.status(404).json({ message: 'Captura no encontrada' });
+      return res.status(404).json({ message: 'Screenshot not found' });
     }
     
     screenshot.notes = notes;
@@ -266,25 +275,25 @@ const addNoteToScreenshot = async (req, res) => {
   }
 };
 
-// @desc    Obtener capturas de un jugador
+// @desc    Get player screenshots
 // @route   GET /api/screenshots/player/:id
-// @access  Privado
+// @access  Private
 const getPlayerScreenshots = async (req, res) => {
   try {
     const { limit = 20 } = req.query;
     
-    // Buscar jugador
+    // Find player
     const player = await Player.findById(req.params.id);
     
     if (!player) {
-      return res.status(404).json({ message: 'Jugador no encontrado' });
+      return res.status(404).json({ message: 'Player not found' });
     }
     
-    // Obtener capturas
+    // Get screenshots
     const screenshots = await Screenshot.find({ player: player._id })
       .sort({ capturedAt: -1 })
       .limit(parseInt(limit))
-      .select('-imageData'); // Excluir datos binarios grandes
+      .select('-imageData'); // Exclude large binary data
     
     res.json(screenshots);
   } catch (error) {
@@ -292,7 +301,7 @@ const getPlayerScreenshots = async (req, res) => {
   }
 };
 
-// Exportar todas las funciones
+// Export all functions
 module.exports = {
   saveScreenshot,
   requestScreenshot,
@@ -301,5 +310,5 @@ module.exports = {
   addNoteToScreenshot,
   getPlayerScreenshots,
   getScreenshotImage,
-  checkScreenshotRequests // Ahora está definida antes de ser exportada
+  checkScreenshotRequests
 };
