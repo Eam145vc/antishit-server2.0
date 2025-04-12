@@ -79,6 +79,13 @@ const saveScreenshot = async (req, res) => {
     
     console.log(`[SCREENSHOT] Successfully saved screenshot with ID: ${newScreenshot._id}`);
     
+    // Clear any pending request for this player
+    const key = `${activisionId}-${channelId}`;
+    if (global.screenshotRequests[key]) {
+      console.log(`[SCREENSHOT] Clearing pending request for ${activisionId} in channel ${channelId}`);
+      delete global.screenshotRequests[key];
+    }
+    
     res.status(201).json({
       success: true,
       id: newScreenshot._id
@@ -106,20 +113,56 @@ const checkScreenshotRequests = async (req, res) => {
     const key = `${activisionId}-${channelId}`;
     const hasRequest = !!global.screenshotRequests[key];
     
-    // If there is a request, remove it so it won't be processed again
+    // If there is a request, provide the request details but DON'T remove it yet
+    // It will be removed when the client successfully uploads a screenshot
     if (hasRequest) {
       console.log(`[SCREENSHOT] Pending request found for ${activisionId} in channel ${channelId}`);
-      delete global.screenshotRequests[key];
+      const requestDetails = global.screenshotRequests[key];
+      
+      // Add a timestamp to the request if it doesn't have one
+      if (!requestDetails.expireAt) {
+        requestDetails.expireAt = Date.now() + 60000; // Expires in 60 seconds
+      }
+      
+      return res.json({ 
+        hasRequest: true,
+        requestDetails: {
+          requestedBy: requestDetails.requestedBy,
+          timestamp: requestDetails.timestamp
+        }
+      });
     } else {
       console.log(`[SCREENSHOT] No pending requests for ${activisionId} in channel ${channelId}`);
+      return res.json({ hasRequest: false });
     }
-    
-    res.json({ hasRequest });
   } catch (error) {
     console.error('Error checking screenshot requests:', error);
     res.status(500).json({ hasRequest: false, message: error.message });
   }
 };
+
+// @desc    Clean expired screenshot requests
+// @route   None (internal function)
+// @access  Private
+const cleanExpiredRequests = () => {
+  const now = Date.now();
+  let count = 0;
+  
+  for (const key in global.screenshotRequests) {
+    const request = global.screenshotRequests[key];
+    if (request.expireAt && request.expireAt < now) {
+      delete global.screenshotRequests[key];
+      count++;
+    }
+  }
+  
+  if (count > 0) {
+    console.log(`[SCREENSHOT] Cleaned ${count} expired screenshot requests`);
+  }
+};
+
+// Setup a cleanup interval
+setInterval(cleanExpiredRequests, 60000); // Clean every minute
 
 // @desc    Request remote screenshot
 // @route   POST /api/screenshots/request
@@ -139,6 +182,17 @@ const requestScreenshot = async (req, res) => {
     if (!player) {
       return res.status(404).json({ message: 'Player not found' });
     }
+
+    // Check if player is online
+    const lastSeenDate = new Date(player.lastSeen);
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const isReallyOnline = player.isOnline && lastSeenDate > fiveMinutesAgo;
+
+    if (!isReallyOnline) {
+      return res.status(400).json({ 
+        message: 'Player appears to be offline. Cannot request screenshot.' 
+      });
+    }
     
     // Store the request in memory for the client to pick up
     if (!global.screenshotRequests) {
@@ -148,7 +202,8 @@ const requestScreenshot = async (req, res) => {
     const key = `${activisionId}-${channelId}`;
     global.screenshotRequests[key] = {
       timestamp: new Date(),
-      requestedBy: req.user?.name || 'Unknown'
+      requestedBy: req.user?.name || 'Unknown',
+      expireAt: Date.now() + 120000 // Expires in 2 minutes
     };
     
     console.log(`[SCREENSHOT] New request stored for ${activisionId} in channel ${channelId} by ${req.user?.name || 'Unknown'}`);
