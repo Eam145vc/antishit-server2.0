@@ -9,13 +9,14 @@ import toast from 'react-hot-toast';
 const LiveMonitor = () => {
   const { channelId } = useParams();
   const navigate = useNavigate();
-  const { socket, connected, joinChannel, leaveChannel } = useSocket();
+  const { socket, connected, joinChannel, leaveChannel, requestScreenshot } = useSocket();
   
   const [players, setPlayers] = useState([]);
   const [channels, setChannels] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedChannel, setSelectedChannel] = useState(channelId ? parseInt(channelId) : null);
+  const [pendingScreenshots, setPendingScreenshots] = useState({});
   
   // Obtener canales disponibles
   useEffect(() => {
@@ -135,14 +136,37 @@ const LiveMonitor = () => {
         return currentPlayers;
       });
     };
+
+    // Escuchar nuevas capturas de pantalla
+    const handleNewScreenshot = (data) => {
+      console.log('Nueva captura recibida:', data);
+      
+      // Actualizar el estado para quitar la entrada pendiente
+      setPendingScreenshots(prev => {
+        const updated = {...prev};
+        delete updated[data.activisionId];
+        return updated;
+      });
+      
+      // Actualizar la lista de jugadores para reflejar la nueva captura
+      setPlayers(prevPlayers => 
+        prevPlayers.map(player => 
+          player.activisionId === data.activisionId 
+            ? {...player, lastScreenshotId: data.id}
+            : player
+        )
+      );
+    };
     
     // Suscribirse a eventos
     socket.on('monitor-update', handleMonitorUpdate);
+    socket.on('new-screenshot', handleNewScreenshot);
     
     // Limpieza al desmontar
     return () => {
       leaveChannel(selectedChannel);
       socket.off('monitor-update', handleMonitorUpdate);
+      socket.off('new-screenshot', handleNewScreenshot);
     };
   }, [connected, selectedChannel, socket, joinChannel, leaveChannel]);
   
@@ -153,12 +177,64 @@ const LiveMonitor = () => {
   };
   
   // Manejar solicitud de captura de pantalla
-  const handleRequestScreenshot = (activisionId) => {
-    if (!connected || !selectedChannel) return;
+  const handleRequestScreenshot = async (activisionId) => {
+    if (!connected || !selectedChannel) {
+      toast.error('No hay conexión en tiempo real');
+      return;
+    }
     
-    // La solicitud se maneja a través del hook useSocket
-    const { requestScreenshot } = useSocket();
-    requestScreenshot(activisionId, selectedChannel);
+    try {
+      // Marcar esta solicitud como pendiente
+      setPendingScreenshots(prev => ({
+        ...prev,
+        [activisionId]: new Date()
+      }));
+      
+      // La solicitud se maneja a través del hook useSocket
+      const success = requestScreenshot(activisionId, selectedChannel);
+      
+      if (!success) {
+        // Si falló el socket, intentar con HTTP
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+          throw new Error('No hay token de autenticación');
+        }
+        
+        const headers = {
+          'Authorization': `Bearer ${token}`
+        };
+        
+        console.log('Intentando solicitud HTTP como respaldo...');
+        
+        const response = await axios.post(
+          `${apiUrl}/screenshots/request`, 
+          { activisionId, channelId: selectedChannel },
+          { headers }
+        );
+        
+        if (response.data.success) {
+          toast.success(`Solicitud de captura enviada para ${activisionId} (HTTP)`);
+        } else {
+          throw new Error('La solicitud HTTP falló');
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error al solicitar captura:', error);
+      
+      // Eliminar de pendientes si hubo error
+      setPendingScreenshots(prev => {
+        const updated = {...prev};
+        delete updated[activisionId];
+        return updated;
+      });
+      
+      toast.error(`Error al solicitar captura: ${error.message}`);
+      return false;
+    }
   };
   
   // Manejar cambio de canal para un jugador
@@ -168,6 +244,9 @@ const LiveMonitor = () => {
     // La solicitud se maneja a través del hook useSocket
     const { changePlayerChannel } = useSocket();
     changePlayerChannel(activisionId, selectedChannel, toChannel);
+    
+    // Actualizar UI inmediatamente eliminando este jugador de la lista
+    setPlayers(players.filter(p => p.activisionId !== activisionId));
   };
   
   return (
@@ -218,7 +297,11 @@ const LiveMonitor = () => {
           {players.map((player) => (
             <PlayerMonitorCard
               key={player._id}
-              player={player}
+              player={{
+                ...player,
+                // Indicar si hay una captura pendiente
+                isPendingScreenshot: !!pendingScreenshots[player.activisionId]
+              }}
               onRequestScreenshot={handleRequestScreenshot}
               onMovePlayer={handleMovePlayer}
               availableChannels={channels.filter(
