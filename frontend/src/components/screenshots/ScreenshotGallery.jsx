@@ -22,16 +22,18 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(!propsScreenshots);
   const [error, setError] = useState(null);
+  const [isRequesting, setIsRequesting] = useState(false);
   
-  // Solicitar captura de pantalla manualmente - MODIFICADO
+  // Request screenshot manually
   const handleManualScreenshot = async () => {
     try {
+      setIsRequesting(true);
       const token = localStorage.getItem('token');
       const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
       
-      // Si no hay ID de jugador, mostrar error
+      // If there's no player ID, show error
       if (!playerId && !id) {
-        toast.error('No se pudo identificar al jugador');
+        toast.error('Could not identify player');
         return;
       }
       
@@ -42,42 +44,51 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       const { activisionId, currentChannelId } = response.data;
       
       if (!activisionId || !currentChannelId) {
-        toast.error('Información de jugador incompleta');
+        toast.error('Incomplete player information');
         return;
       }
       
-      console.log('Solicitando captura para:', { activisionId, currentChannelId });
+      console.log('Requesting screenshot for:', { activisionId, currentChannelId });
       
-      // Verificar si el socket está conectado
+      // Check if socket is connected
       if (connected) {
-        // Usar socket.io
+        // Use socket.io
         const result = requestScreenshot(activisionId, currentChannelId);
         
         if (result) {
-          toast.success('Captura de pantalla solicitada vía socket');
+          toast.success('Screenshot requested via socket');
         } else {
-          // Si falla el socket, intentar con HTTP
+          // If socket fails, try with HTTP
           await axios.post(`${apiUrl}/screenshots/request`, 
             { activisionId, channelId: currentChannelId },
             { headers: { 'Authorization': `Bearer ${token}` } }
           );
-          toast.success('Captura de pantalla solicitada vía HTTP');
+          toast.success('Screenshot requested via HTTP');
         }
       } else {
-        // Si no hay conexión socket, usar HTTP directamente
+        // If no socket connection, use HTTP directly
         await axios.post(`${apiUrl}/screenshots/request`, 
           { activisionId, channelId: currentChannelId },
           { headers: { 'Authorization': `Bearer ${token}` } }
         );
-        toast.success('Captura de pantalla solicitada');
+        toast.success('Screenshot requested');
       }
+      
+      // Show message about timing
+      toast('The screenshot will appear shortly when captured by the client', {
+        icon: '⏱️',
+        duration: 5000
+      });
+      
     } catch (error) {
-      console.error('Error solicitando captura:', error);
-      toast.error('Error al solicitar captura: ' + (error.response?.data?.message || error.message));
+      console.error('Error requesting screenshot:', error);
+      toast.error('Error requesting screenshot: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setIsRequesting(false);
     }
   };
   
-  // Cargar capturas de pantalla
+  // Load screenshots
   useEffect(() => {
     if (propsScreenshots) {
       setScreenshots(propsScreenshots);
@@ -93,7 +104,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         const token = localStorage.getItem('token');
         
         if (!token) {
-          toast.error('Sesión expirada, por favor inicie sesión nuevamente');
+          toast.error('Session expired, please log in again');
           navigate('/login');
           return;
         }
@@ -107,41 +118,17 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           url = `${apiUrl}/screenshots/player/${playerId || id}`;
         }
         
-        console.log('Solicitando capturas de:', url);
+        console.log('Requesting screenshots from:', url);
         const response = await axios.get(url, { headers });
-        console.log('Respuesta de capturas:', response.data);
+        console.log('Screenshots response:', response.data);
         
-        // Preparar capturas con imágenes
-        const preparedScreenshots = await Promise.all(
-          response.data.map(async (screenshot) => {
-            try {
-              const imageResponse = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
-              
-              // Asegurar que la imagen tenga el prefijo correcto
-              const base64Image = imageResponse.data.imageData.startsWith('data:image')
-                ? imageResponse.data.imageData
-                : `data:image/png;base64,${imageResponse.data.imageData}`;
-              
-              return {
-                ...screenshot,
-                imageData: base64Image
-              };
-            } catch (imageError) {
-              console.error(`Error cargando imagen para screenshot ${screenshot._id}:`, imageError);
-              return {
-                ...screenshot,
-                imageData: null
-              };
-            }
-          })
-        );
-        
-        setScreenshots(preparedScreenshots);
-        setFilteredScreenshots(preparedScreenshots);
+        // Set screenshots without loading images
+        setScreenshots(response.data);
+        setFilteredScreenshots(response.data);
         setError(null);
       } catch (err) {
-        console.error('Error al cargar capturas de pantalla:', err);
-        setError('Error al cargar capturas de pantalla');
+        console.error('Error loading screenshots:', err);
+        setError('Error loading screenshots');
         setScreenshots([]);
         setFilteredScreenshots([]);
       } finally {
@@ -152,7 +139,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     fetchScreenshots();
   }, [propsScreenshots, playerId, id, navigate]);
   
-  // Filtrar capturas de pantalla
+  // Filter screenshots
   useEffect(() => {
     const filtered = screenshots.filter((screenshot) => {
       const matchesSearch = !searchTerm || 
@@ -164,10 +151,10 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     setFilteredScreenshots(filtered);
   }, [screenshots, searchTerm]);
   
-  // Abrir modal de captura de pantalla - MODIFICADO
+  // Open screenshot modal
   const openScreenshotModal = async (screenshot) => {
     try {
-      // Si ya tenemos los datos de la imagen, usarlos directamente
+      // If we already have the image data, use it directly
       if (screenshot.imageData) {
         setSelectedScreenshot(screenshot);
         return;
@@ -177,7 +164,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       const token = localStorage.getItem('token');
       
       if (!token) {
-        toast.error('Sesión expirada, por favor inicie sesión nuevamente');
+        toast.error('Session expired, please log in again');
         navigate('/login');
         return;
       }
@@ -186,17 +173,17 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         'Authorization': `Bearer ${token}`
       };
       
-      console.log(`Solicitando imagen para captura: ${screenshot._id}`);
+      console.log(`Requesting image for screenshot: ${screenshot._id}`);
       const response = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
       
-      // Si tenemos respuesta pero no hay datos de imagen, mostrar un mensaje
+      // If we have a response but no image data, show a message
       if (!response.data || !response.data.imageData) {
-        console.error('La respuesta no contiene datos de imagen:', response.data);
-        toast.error('La imagen no está disponible');
+        console.error('Response contains no image data:', response.data);
+        toast.error('Image is not available');
         return;
       }
       
-      // Asegurar que la imagen tenga el prefijo correcto
+      // Ensure the image has the correct prefix
       const base64Image = response.data.imageData.startsWith('data:image')
         ? response.data.imageData
         : `data:image/png;base64,${response.data.imageData}`;
@@ -206,12 +193,12 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         imageData: base64Image
       });
     } catch (error) {
-      console.error('Error al cargar imagen:', error);
-      toast.error('Error al cargar la imagen: ' + (error.response?.data?.message || error.message));
+      console.error('Error loading image:', error);
+      toast.error('Error loading the image: ' + (error.response?.data?.message || error.message));
     }
   };
   
-  // Cerrar modal de captura de pantalla
+  // Close screenshot modal
   const closeScreenshotModal = () => {
     setSelectedScreenshot(null);
   };
@@ -220,21 +207,21 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     <div className="space-y-6">
       {!isEmbedded && (
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Capturas de Pantalla</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Screenshots</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Registro de capturas de pantalla
+            Screenshot history
           </p>
         </div>
       )}
       
-      {/* Controles de filtro */}
+      {/* Filter controls */}
       <div className="flex flex-col space-y-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
         <div className="flex flex-col space-y-4 md:flex-row md:items-center md:space-x-4 md:space-y-0">
-          {/* Búsqueda */}
+          {/* Search */}
           <div className="relative">
             <input
               type="text"
-              placeholder="Buscar por Activision ID..."
+              placeholder="Search by Activision ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="form-input pr-10"
@@ -243,20 +230,30 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           {!isEmbedded && (
             <button 
               onClick={handleManualScreenshot}
+              disabled={isRequesting}
               className="btn-primary flex items-center"
             >
-              <CameraIcon className="h-5 w-5 mr-2" />
-              Capturar Pantalla
+              {isRequesting ? (
+                <>
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent"></div>
+                  Requesting...
+                </>
+              ) : (
+                <>
+                  <CameraIcon className="h-5 w-5 mr-2" />
+                  Take Screenshot
+                </>
+              )}
             </button>
           )}
         </div>
         
         <div className="text-right text-sm text-gray-500">
-          {filteredScreenshots.length} capturas
+          {filteredScreenshots.length} screenshots
         </div>
       </div>
       
-      {/* Mensaje de carga */}
+      {/* Loading message */}
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -271,7 +268,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       ) : filteredScreenshots.length === 0 ? (
         <div className="rounded-md bg-gray-50 p-6 text-center">
           <UserGroupIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500">No hay capturas de pantalla disponibles</p>
+          <p className="text-gray-500">No screenshots available</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -281,17 +278,9 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
               className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
               onClick={() => openScreenshotModal(screenshot)}
             >
-              {screenshot.imageData ? (
-                <img 
-                  src={screenshot.imageData} 
-                  alt={`Captura de ${screenshot.activisionId}`}
-                  className="w-full h-48 object-cover"
-                />
-              ) : (
-                <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
-                  <p className="text-gray-500">Sin imagen</p>
-                </div>
-              )}
+              <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
+                <p className="text-gray-500">Click to view</p>
+              </div>
               
               <div className="p-4">
                 <div className="flex justify-between items-center">
@@ -306,7 +295,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
                   </span>
                 </div>
                 <div className="mt-1 text-xs text-gray-500">
-                  Canal {screenshot.channelId}
+                  Channel {screenshot.channelId}
                 </div>
               </div>
             </div>
@@ -314,7 +303,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         </div>
       )}
 
-      {/* Modal de captura de pantalla */}
+      {/* Screenshot modal */}
       {selectedScreenshot && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
@@ -326,20 +315,20 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           >
             <img 
               src={selectedScreenshot.imageData} 
-              alt={`Captura de ${selectedScreenshot.activisionId}`}
+              alt={`Screenshot from ${selectedScreenshot.activisionId}`}
               className="max-w-full max-h-[90vh] object-contain"
             />
             <div className="mt-4 text-center text-white">
               <p>
-                Captura de {selectedScreenshot.activisionId} - 
-                Canal {selectedScreenshot.channelId} - 
+                Screenshot from {selectedScreenshot.activisionId} - 
+                Channel {selectedScreenshot.channelId} - 
                 {new Date(selectedScreenshot.capturedAt).toLocaleString()}
               </p>
               <Link 
                 to={`/screenshots/${selectedScreenshot._id}`}
                 className="mt-2 inline-block text-primary-300 hover:text-primary-100"
               >
-                Ver detalles completos
+                View full details
               </Link>
             </div>
           </div>
