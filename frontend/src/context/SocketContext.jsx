@@ -10,7 +10,7 @@ export const SocketProvider = ({ children }) => {
   const [connected, setConnected] = useState(false);
   const { user, isAuthenticated } = useAuth();
   
-  // URL de conexión del socket - usa la URL base del backend, no la del frontend
+  // Socket connection URL - use the backend base URL, not the frontend one
   const SOCKET_URL = 'https://antishit-server2-0.onrender.com';
   
   useEffect(() => {
@@ -23,12 +23,12 @@ export const SocketProvider = ({ children }) => {
       return;
     }
     
-    // Inicializar socket
+    // Initialize socket
     const token = localStorage.getItem('token');
     
     if (!token) return;
     
-    console.log('Iniciando conexión con Socket.IO en:', SOCKET_URL);
+    console.log('Starting Socket.IO connection at:', SOCKET_URL);
     
     const socketIo = io(SOCKET_URL, {
       path: '/socket.io',
@@ -41,140 +41,155 @@ export const SocketProvider = ({ children }) => {
     
     socketIo.on('connect', () => {
       setConnected(true);
-      console.log('Socket conectado correctamente');
-      toast.success('Conectado en tiempo real');
+      console.log('Socket connected successfully');
+      toast.success('Connected in real-time');
     });
     
     socketIo.on('disconnect', (reason) => {
       setConnected(false);
-      console.log('Socket desconectado, razón:', reason);
+      console.log('Socket disconnected, reason:', reason);
       
       if (reason === 'io server disconnect') {
-        // Reconectar manualmente si fue desconectado por el servidor
+        // Reconnect manually if disconnected by the server
         socketIo.connect();
       }
     });
     
     socketIo.on('connect_error', (error) => {
-      console.error('Error de conexión del socket:', error);
-      toast.error('Error de conexión en tiempo real');
+      console.error('Socket connection error:', error);
+      toast.error('Real-time connection error');
     });
     
     socketIo.on('reconnect_attempt', (attemptNumber) => {
-      console.log(`Intento de reconexión #${attemptNumber}`);
+      console.log(`Reconnection attempt #${attemptNumber}`);
     });
     
     socketIo.on('reconnect', (attemptNumber) => {
-      console.log(`Reconectado después de ${attemptNumber} intentos`);
+      console.log(`Reconnected after ${attemptNumber} attempts`);
       setConnected(true);
-      toast.success('Reconectado en tiempo real');
+      toast.success('Reconnected in real-time');
     });
     
     socketIo.on('reconnect_failed', () => {
-      console.error('Reconexión fallida después de varios intentos');
-      toast.error('No se pudo reconectar al servidor');
+      console.error('Reconnection failed after multiple attempts');
+      toast.error('Could not reconnect to the server');
     });
     
     socketIo.on('error', (error) => {
-      console.error('Error de socket:', error);
-      toast.error('Error de conexión en tiempo real');
+      console.error('Socket error:', error);
+      toast.error('Real-time connection error');
     });
     
     socketIo.on('critical-alert', (alert) => {
-      // Mostrar alertas críticas incluso si no estamos en la página de alertas
-      toast.error(`🚨 ALERTA: ${alert.message}`, {
+      // Show critical alerts even if we're not on the alerts page
+      toast.error(`🚨 ALERT: ${alert.message}`, {
         duration: 6000,
       });
     });
 
-    // Agregamos un listener específico para monitor-update
+    // Add a specific listener for take-screenshot events
+    socketIo.on('take-screenshot', (data) => {
+      console.log('Screenshot request received:', data);
+      toast(`Screenshot requested by ${data.requestedBy}`, {
+        icon: '📸',
+        duration: 5000
+      });
+    });
+    
+    // Add a specific listener for monitor-update
     socketIo.on('monitor-update', (data) => {
-      console.log('Actualización de monitoreo recibida:', data);
-      // No hacemos nada aquí, cada componente maneja sus propias actualizaciones
+      console.log('Monitor update received:', data);
+      // We don't do anything here, each component handles its own updates
+    });
+    
+    // Add a listener for new screenshots
+    socketIo.on('new-screenshot', (data) => {
+      console.log('New screenshot available:', data);
+      toast.success(`New screenshot from ${data.activisionId} available`);
     });
     
     setSocket(socketIo);
     
-    // Limpieza al desmontar
+    // Cleanup on unmount
     return () => {
-      console.log('Desconectando socket...');
+      console.log('Disconnecting socket...');
       if (socketIo) {
         socketIo.disconnect();
       }
     };
   }, [isAuthenticated, user]);
   
-  // Función para unirse a un canal
+  // Function to join a channel
   const joinChannel = (channelId) => {
     if (socket && connected) {
       socket.emit('join-channel', channelId);
-      console.log(`Unido al canal ${channelId}`);
+      console.log(`Joined channel ${channelId}`);
       return true;
     }
-    console.warn('No se pudo unir al canal - socket no conectado');
+    console.warn('Could not join channel - socket not connected');
     return false;
   };
   
-  // Función para salir de un canal
+  // Function to leave a channel
   const leaveChannel = (channelId) => {
     if (socket && connected) {
       socket.emit('leave-channel', channelId);
-      console.log(`Salido del canal ${channelId}`);
+      console.log(`Left channel ${channelId}`);
       return true;
     }
     return false;
   };
   
-  // Función para solicitar captura de pantalla
+  // Function to request a screenshot - improved
   const requestScreenshot = (activisionId, channelId) => {
     if (socket && connected) {
-      console.log(`Solicitando captura para ${activisionId} en canal ${channelId}`);
+      console.log(`Requesting screenshot for ${activisionId} in channel ${channelId}`);
       
-      // Emitir el evento con la información necesaria
+      // Emit the event with the necessary information
       socket.emit('request-screenshot', { 
         activisionId, 
         channelId,
-        requestedBy: user.name,
+        requestedBy: user?.name || 'Judge',
         timestamp: new Date()
       });
       
-      // Mensaje de confirmación
-      toast.success(`Solicitando captura para ${activisionId}`);
+      // Confirmation message
+      toast.success(`Requesting screenshot for ${activisionId}`);
       
-      // Registrar en consola para depuración
-      console.log('Evento socket emitido: request-screenshot', {
+      // Log to console for debugging
+      console.log('Socket event emitted: request-screenshot', {
         activisionId, 
         channelId,
-        requestedBy: user.name
+        requestedBy: user?.name
       });
       
       return true;
     }
     
-    // Mensaje de error si no hay conexión
-    console.warn('No se pudo solicitar captura - socket no conectado', {
+    // Error message if not connected
+    console.warn('Could not request screenshot - socket not connected', {
       socketExists: !!socket,
       connected: connected
     });
     
-    toast.error('No hay conexión en tiempo real para solicitar captura');
+    toast.error('No real-time connection to request screenshot');
     return false;
   };
   
-  // Función para cambiar canal de jugador
+  // Function to change player channel
   const changePlayerChannel = (activisionId, fromChannel, toChannel) => {
     if (socket && connected) {
       socket.emit('change-player-channel', { 
         activisionId, 
         fromChannel, 
         toChannel,
-        // Agregar quién realizó el cambio
-        changedBy: user?.name || 'Juez' 
+        // Add who made the change
+        changedBy: user?.name || 'Judge' 
       });
-      toast.success(`Moviendo a ${activisionId} al canal ${toChannel}`);
+      toast.success(`Moving ${activisionId} to channel ${toChannel}`);
       return true;
     }
-    toast.error('No hay conexión en tiempo real');
+    toast.error('No real-time connection');
     return false;
   };
   
