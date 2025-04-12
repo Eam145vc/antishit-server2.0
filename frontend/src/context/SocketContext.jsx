@@ -140,9 +140,19 @@ export const SocketProvider = ({ children }) => {
     return false;
   };
   
-  // Function to request a screenshot - improved
+  // Function to request a screenshot - improved with more logging
   const requestScreenshot = (activisionId, channelId) => {
-    if (socket && connected) {
+    if (!socket || !connected) {
+      console.warn('Could not request screenshot - socket not connected', {
+        socketExists: !!socket,
+        connected: connected
+      });
+      
+      toast.error('No real-time connection to request screenshot');
+      return false;
+    }
+    
+    try {
       console.log(`Requesting screenshot for ${activisionId} in channel ${channelId}`);
       
       // Emit the event with the necessary information
@@ -164,16 +174,11 @@ export const SocketProvider = ({ children }) => {
       });
       
       return true;
+    } catch (error) {
+      console.error('Error requesting screenshot via socket:', error);
+      toast.error(`Error requesting screenshot: ${error.message}`);
+      return false;
     }
-    
-    // Error message if not connected
-    console.warn('Could not request screenshot - socket not connected', {
-      socketExists: !!socket,
-      connected: connected
-    });
-    
-    toast.error('No real-time connection to request screenshot');
-    return false;
   };
   
   // Function to change player channel
