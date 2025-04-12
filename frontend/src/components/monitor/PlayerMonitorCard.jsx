@@ -18,9 +18,17 @@ const PlayerMonitorCard = ({
   availableChannels = []
 }) => {
   const [showMoveOptions, setShowMoveOptions] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   
-  const handleScreenshotRequest = () => {
-    onRequestScreenshot(player.activisionId);
+  const handleScreenshotRequest = async () => {
+    try {
+      setIsCapturing(true);
+      await onRequestScreenshot(player.activisionId);
+      setTimeout(() => setIsCapturing(false), 3000); // Reset after 3 seconds
+    } catch (error) {
+      console.error("Error requesting screenshot:", error);
+      setIsCapturing(false);
+    }
   };
   
   const handleMoveClick = () => {
@@ -135,16 +143,18 @@ const PlayerMonitorCard = ({
         <div className="flex space-x-3">
           <button
             onClick={handleScreenshotRequest}
-            disabled={!isReallyOnline}
+            disabled={!isReallyOnline || isCapturing}
             className={`flex-1 rounded-md py-2 text-xs font-medium ${
-              isReallyOnline
-                ? 'bg-primary-600 text-white hover:bg-primary-700'
-                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              !isReallyOnline
+                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                : isCapturing
+                ? 'bg-blue-700 text-white'
+                : 'bg-primary-600 text-white hover:bg-primary-700'
             }`}
           >
             <div className="flex items-center justify-center">
               <CameraIcon className="mr-1 h-4 w-4" />
-              Capturar
+              {isCapturing ? 'Solicitando...' : 'Capturar'}
             </div>
           </button>
           
