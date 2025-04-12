@@ -74,6 +74,20 @@ const socketSetup = (server) => {
       // Mejorado: Logging detallado para debug
       console.log(`[SOCKET] ${socket.user.name} solicitó captura para ${activisionId} en canal ${channelId}`);
 
+      // Almacenar la solicitud en la caché global
+      const key = `${activisionId}-${channelId}`;
+      if (!global.screenshotRequests) {
+        global.screenshotRequests = {};
+      }
+      
+      global.screenshotRequests[key] = {
+        timestamp: new Date(),
+        requestedBy: socket.user.name,
+        expireAt: Date.now() + 120000 // Expires in 2 minutes
+      };
+      
+      console.log(`[SOCKET] Almacenada solicitud de captura para ${activisionId} en canal ${channelId}`);
+
       // Enviar el evento a todos los clientes en ese canal específico
       io.to(`channel:${channelId}`).emit('take-screenshot', {
         requestedBy: requestedBy || socket.user.name,
