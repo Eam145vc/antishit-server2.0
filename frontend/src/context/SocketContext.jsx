@@ -140,8 +140,8 @@ export const SocketProvider = ({ children }) => {
     return false;
   };
   
-  // Function to request a screenshot - improved with more logging
-  const requestScreenshot = (activisionId, channelId) => {
+  // Function to request a screenshot - improved with more logging and source tracking
+  const requestScreenshot = (activisionId, channelId, options = {}) => {
     if (!socket || !connected) {
       console.warn('Could not request screenshot - socket not connected', {
         socketExists: !!socket,
@@ -156,11 +156,15 @@ export const SocketProvider = ({ children }) => {
       console.log(`Requesting screenshot for ${activisionId} in channel ${channelId}`);
       
       // Emit the event with the necessary information
+      // Added source: 'judge' to clearly mark this screenshot request
       socket.emit('request-screenshot', { 
         activisionId, 
         channelId,
         requestedBy: user?.name || 'Judge',
-        timestamp: new Date()
+        timestamp: new Date(),
+        source: options.source || 'judge', // Explicitly marking this as a judge request
+        isJudgeRequest: options.isJudgeRequest !== false, // Default to true
+        FORCE_JUDGE_TYPE: options.FORCE_JUDGE_TYPE !== false // Additional flag to ensure proper categorization
       });
       
       // Confirmation message
@@ -170,7 +174,8 @@ export const SocketProvider = ({ children }) => {
       console.log('Socket event emitted: request-screenshot', {
         activisionId, 
         channelId,
-        requestedBy: user?.name
+        requestedBy: user?.name,
+        source: options.source || 'judge'
       });
       
       return true;
