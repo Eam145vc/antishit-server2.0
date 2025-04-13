@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
@@ -11,85 +11,11 @@ import {
   FunnelIcon,
   UserIcon,
   ShieldCheckIcon,
-  MagnifyingGlassIcon
+  MagnifyingGlassIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { useSocket } from '../../context/SocketContext';
-
-// Component for viewing images with zoom
-const ImageWithZoom = ({ imageData, altText }) => {
-  const [scale, setScale] = useState(1);
-  const maxScale = 3;
-  
-  const handleZoomIn = () => {
-    setScale(prev => Math.min(prev + 0.5, maxScale));
-  };
-  
-  const handleZoomOut = () => {
-    setScale(prev => Math.max(prev - 0.5, 1));
-  };
-  
-  const handleReset = () => {
-    setScale(1);
-  };
-
-  return (
-    <div className="relative">
-      <div className="sticky top-0 z-10 flex justify-between w-full bg-black bg-opacity-50 p-2">
-        <div className="flex space-x-2">
-          <button 
-            onClick={handleZoomOut}
-            disabled={scale === 1}
-            className="bg-white bg-opacity-90 rounded-full p-2 text-gray-900 disabled:opacity-50"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clipRule="evenodd" />
-            </svg>
-          </button>
-          <button 
-            onClick={handleZoomIn}
-            disabled={scale === maxScale}
-            className="bg-white bg-opacity-90 rounded-full p-2 text-gray-900 disabled:opacity-50"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
-          </button>
-          <button 
-            onClick={handleReset}
-            className="bg-white bg-opacity-90 rounded-full p-2 text-gray-900"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-            </svg>
-          </button>
-        </div>
-        <div className="text-white bg-black bg-opacity-50 px-2 py-1 rounded text-sm">
-          {Math.round(scale * 100)}%
-        </div>
-      </div>
-      
-      <div 
-        className="overflow-auto"
-        style={{ 
-          maxHeight: '70vh',
-          maxWidth: '95vw'
-        }}
-      >
-        <img 
-          src={imageData} 
-          alt={altText}
-          style={{ 
-            transform: `scale(${scale})`,
-            transformOrigin: 'top left',
-            transition: 'transform 0.3s ease'
-          }}
-          className="max-w-full"
-        />
-      </div>
-    </div>
-  );
-};
 
 const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded = false }) => {
   const { id } = useParams();
@@ -114,51 +40,25 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   
   // Function to force correct source detection
   const forceCorrectSource = (screenshot) => {
-    // This is a quick patch to ensure correct detection
-    // If we know there's a specific problem with judge requests
-    // always appearing as user, we can use this logic
-    
-    // 1. Explicitly check if there's any field that indicates a judge
+    // If we have explicit fields that indicate a judge request
     if (screenshot.requestedBy || 
         screenshot.judgeId || 
         (screenshot.notes && screenshot.notes.includes("judge"))) {
       return "judge";
     }
     
-    // 2. Check if the capture has a recent timestamp or is within
-    // a certain time after a known judge request
-    const captureTime = new Date(screenshot.capturedAt || screenshot.timestamp || new Date());
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    
-    // If the capture is very recent and there are pending judge requests, assume it's from a judge
-    // This is a simplified approach - in production you'd need more precise tracking
-    if (captureTime > fiveMinutesAgo && pendingJudgeRequests.length > 0) {
-      return "judge";
-    }
-    
-    // 3. Check if the ID follows any specific pattern we can use to identify
-    // This is an example - you should adapt this to your real system
-    if (screenshot._id) {
-      const idStr = screenshot._id.toString();
-      // If the ID ends in an even digit, assume it's a judge request
-      // This is just for demonstration - in a real system you'd need more robust logic
-      const lastChar = idStr.charAt(idStr.length - 1);
-      if (["0", "2", "4", "6", "8"].includes(lastChar)) {
-        return "judge";
-      }
-    }
-    
-    // By default, consider it submitted by the user
+    // Default to user submitted
     return "user";
   };
   
   // List of pending judge requests for tracking
   const [pendingJudgeRequests, setPendingJudgeRequests] = useState([]);
   
-  // Function to update data
-  const refreshData = async () => {
+  // Function to update data - using useCallback to prevent unnecessary re-renders
+  const refreshData = useCallback(async () => {
     try {
       setIsRefreshing(true);
+      toast.loading('Refreshing screenshots...', { id: 'refresh-toast' });
       
       const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
       const token = localStorage.getItem('token');
@@ -183,53 +83,68 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       console.log('Screenshots response:', response.data);
       
       if (response.data && Array.isArray(response.data)) {
-        // Process the data with the force correct origin function
-        const processedScreenshots = response.data.map(screenshot => {
-          // Try to load an actual thumbnail
+        // Process the data and prepare thumbnails
+        const processedScreenshots = await Promise.all(response.data.map(async (screenshot) => {
+          // Determine the source (user or judge)
+          const source = forceCorrectSource(screenshot);
+          
+          // For real thumbnails, we need to fetch the actual image data
           let thumbnailUrl = null;
           
-          // Try to generate a thumbnail from the original image
-          if (screenshot.imageData && typeof screenshot.imageData === 'string') {
-            thumbnailUrl = screenshot.imageData;
-          } else {
-            // If there's no imageData, try to load from the ID
-            thumbnailUrl = `${apiUrl}/screenshots/${screenshot._id}/thumbnail`;
+          try {
+            // Only try to get the image if we need it (performance optimization)
+            const imageResponse = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
+            
+            if (imageResponse.data && imageResponse.data.imageData) {
+              // Ensure the image has the correct prefix
+              const imageData = imageResponse.data.imageData.startsWith('data:image')
+                ? imageResponse.data.imageData
+                : `data:image/png;base64,${imageResponse.data.imageData}`;
+                
+              thumbnailUrl = imageData;
+            }
+          } catch (error) {
+            console.warn(`Could not load image for screenshot ${screenshot._id}:`, error);
+            // Fall back to placeholder
+            thumbnailUrl = generateDummyThumbnail(screenshot);
           }
           
           return {
             ...screenshot,
-            source: forceCorrectSource(screenshot),
-            thumbnailUrl: thumbnailUrl
+            source,
+            thumbnailUrl
           };
-        });
+        }));
         
         setScreenshots(processedScreenshots);
         // Apply current filters to the new data
         applyFilters(processedScreenshots);
         
-        toast.success(`${processedScreenshots.length} screenshots loaded`);
+        toast.success(`${processedScreenshots.length} screenshots loaded`, { id: 'refresh-toast' });
       } else {
-        toast.error('Invalid response format');
+        toast.error('Invalid response format', { id: 'refresh-toast' });
       }
       
     } catch (error) {
       console.error('Error refreshing data:', error);
-      toast.error('Error refreshing data: ' + (error.response?.data?.message || error.message));
+      toast.error('Error refreshing data: ' + (error.response?.data?.message || error.message), { id: 'refresh-toast' });
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [playerId, id, navigate]);
   
   // Request screenshot manually
   const handleManualScreenshot = async () => {
     try {
       setIsRequesting(true);
+      toast.loading('Requesting screenshot...', { id: 'screenshot-request-toast' });
+      
       const token = localStorage.getItem('token');
       const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
       
       // If there's no player ID, show error
       if (!playerId && !id) {
-        toast.error('Could not identify player');
+        toast.error('Could not identify player', { id: 'screenshot-request-toast' });
         return;
       }
       
@@ -239,8 +154,8 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       
       const { activisionId, currentChannelId } = response.data;
       
-      if (!activisionId || !currentChannelId) {
-        toast.error('Incomplete player information');
+      if (!activisionId || currentChannelId === undefined) {
+        toast.error('Incomplete player information', { id: 'screenshot-request-toast' });
         return;
       }
       
@@ -250,8 +165,8 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       const requestTime = new Date();
       
       // Store in a list of pending requests to help with origin detection
-      setPendingJudgeRequests([
-        ...pendingJudgeRequests,
+      setPendingJudgeRequests(prev => [
+        ...prev,
         {
           activisionId,
           channelId: currentChannelId,
@@ -261,13 +176,12 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       ]);
       
       // Store information that identifies this was a judge request
-      // SOLUTION: Force "judge" type in the request
+      // Add a specific marker for our system
       const requestInfo = {
-        requestedBy: "JUDGE_EXPLICIT", // Unmistakable value
-        requestType: "JUDGE_REQUESTED", // Unmistakable value
+        requestedBy: "JUDGE_EXPLICIT",
+        requestType: "JUDGE_REQUESTED",
         judgeId: localStorage.getItem('userId') || "unknown_judge",
         requestTime: requestTime.toISOString(),
-        // Add a specific marker for our system
         FORCE_JUDGE_TYPE: true
       };
       
@@ -277,7 +191,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         const result = requestScreenshot(activisionId, currentChannelId, requestInfo);
         
         if (result) {
-          toast.success('Screenshot requested via socket');
+          toast.success('Screenshot requested via socket', { id: 'screenshot-request-toast' });
         } else {
           // If socket fails, try with HTTP
           await axios.post(`${apiUrl}/screenshots/request`, 
@@ -286,11 +200,11 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
               channelId: currentChannelId,
               requestInfo: requestInfo,
               notes: "JUDGE REQUESTED - via dashboard",
-              forceJudgeType: true  // Additional marker
+              forceJudgeType: true
             },
             { headers: { 'Authorization': `Bearer ${token}` } }
           );
-          toast.success('Screenshot requested via HTTP');
+          toast.success('Screenshot requested via HTTP', { id: 'screenshot-request-toast' });
         }
       } else {
         // If no socket connection, use HTTP directly
@@ -299,12 +213,12 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
             activisionId, 
             channelId: currentChannelId,
             requestInfo: requestInfo,
-            notes: "JUDGE REQUESTED - via dashboard",
-            forceJudgeType: true  // Additional marker
+            notes: "JUDGE REQUESTED - via dashboard", 
+            forceJudgeType: true
           },
           { headers: { 'Authorization': `Bearer ${token}` } }
         );
-        toast.success('Screenshot requested');
+        toast.success('Screenshot requested', { id: 'screenshot-request-toast' });
       }
       
       // Show message about timing
@@ -320,7 +234,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       
     } catch (error) {
       console.error('Error requesting screenshot:', error);
-      toast.error('Error requesting screenshot: ' + (error.response?.data?.message || error.message));
+      toast.error('Error requesting screenshot: ' + (error.response?.data?.message || error.message), { id: 'screenshot-request-toast' });
     } finally {
       setIsRequesting(false);
     }
@@ -373,15 +287,47 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       const response = await axios.get(url, { headers });
       console.log('Screenshots response:', response.data);
       
-      // Process captures with the force correct origin function
-      const processedScreenshots = response.data.map(screenshot => {
-        // Try to generate or load a thumbnail
-        return {
-          ...screenshot,
-          source: forceCorrectSource(screenshot),
-          thumbnailUrl: generateDummyThumbnail(screenshot)
-        };
-      });
+      if (!Array.isArray(response.data)) {
+        console.error('Invalid response data, not an array:', response.data);
+        setError('Invalid response format');
+        setScreenshots([]);
+        setFilteredScreenshots([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Get all screenshots data first
+      const screenshots = response.data;
+      
+      // Now fetch the actual images for each screenshot
+      const processedScreenshots = await Promise.all(screenshots.map(async screenshot => {
+        try {
+          // Try to get the actual image
+          const imageResponse = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
+          let thumbnailUrl;
+          
+          if (imageResponse.data && imageResponse.data.imageData) {
+            thumbnailUrl = imageResponse.data.imageData.startsWith('data:image') 
+              ? imageResponse.data.imageData 
+              : `data:image/png;base64,${imageResponse.data.imageData}`;
+          } else {
+            thumbnailUrl = generateDummyThumbnail(screenshot);
+          }
+          
+          return {
+            ...screenshot,
+            source: forceCorrectSource(screenshot),
+            thumbnailUrl
+          };
+        } catch (error) {
+          console.warn(`Could not load image for screenshot ${screenshot._id}:`, error);
+          return {
+            ...screenshot,
+            source: forceCorrectSource(screenshot),
+            thumbnailUrl: generateDummyThumbnail(screenshot)
+          };
+        }
+      }));
       
       // Check if we have captures
       if (processedScreenshots.length === 0) {
@@ -411,13 +357,13 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   // Generate dummy thumbnail for simulation
   const generateDummyThumbnail = (screenshot) => {
     // In a real environment, you'd use a real URL to a thumbnail
-    // For demonstration, we generate a color based on the ID
+    // For demonstration, we generate a placeholder SVG
     const id = screenshot._id || '';
     const hash = id.split('').reduce((acc, char) => char.charCodeAt(0) + acc, 0);
     const hue = hash % 360;
     
     // Generate an SVG image as a data-url with a unique color
-    return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150' viewBox='0 0 200 150'%3E%3Crect width='200' height='150' fill='hsl(${hue}, 70%25, 80%25)' /%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='18' text-anchor='middle' fill='%23333' dominant-baseline='middle'%3E${screenshot.activisionId}%3C/text%3E%3C/svg%3E`;
+    return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150' viewBox='0 0 200 150'%3E%3Crect width='200' height='150' fill='hsl(${hue}, 70%25, 80%25)' /%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='18' text-anchor='middle' fill='%23333' dominant-baseline='middle'%3E${screenshot.activisionId || 'Screenshot'}%3C/text%3E%3C/svg%3E`;
   };
   
   // Filter screenshots with new filters
@@ -474,12 +420,12 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   const userScreenshots = filteredScreenshots.filter(ss => ss.source === 'user');
   const judgeScreenshots = filteredScreenshots.filter(ss => ss.source === 'judge');
   
-  // Open screenshot modal
-  const openScreenshotModal = async (screenshot) => {
+  // View screenshot in a new tab/window for native browser zoom
+  const viewScreenshotInNewTab = async (screenshot) => {
     try {
-      // If we already have the image data, use it directly
       if (screenshot.imageData) {
-        setSelectedScreenshot(screenshot);
+        // If we already have image data, open it right away
+        window.open(screenshot.imageData, '_blank');
         return;
       }
       
@@ -496,46 +442,43 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         'Authorization': `Bearer ${token}`
       };
       
-      console.log(`Requesting image for screenshot: ${screenshot._id}`);
+      // Show loading toast
+      toast.loading('Loading image...', { id: 'loading-image-toast' });
+      
+      // Get the full image data
       const response = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
       
-      // If we have a response but no image data, show a message
       if (!response.data || !response.data.imageData) {
-        console.error('Response contains no image data:', response.data);
-        toast.error('Image is not available');
+        toast.error('Image is not available', { id: 'loading-image-toast' });
         return;
       }
       
       // Ensure the image has the correct prefix
-      const base64Image = response.data.imageData.startsWith('data:image')
+      const imageData = response.data.imageData.startsWith('data:image')
         ? response.data.imageData
         : `data:image/png;base64,${response.data.imageData}`;
       
-      setSelectedScreenshot({
-        ...screenshot,
-        imageData: base64Image
-      });
+      // Open the image in a new tab/window
+      window.open(imageData, '_blank');
+      
+      // Clear the loading toast
+      toast.success('Image loaded', { id: 'loading-image-toast' });
+      
     } catch (error) {
       console.error('Error loading image:', error);
-      toast.error('Error loading the image: ' + (error.response?.data?.message || error.message));
+      toast.error('Error loading image: ' + (error.response?.data?.message || error.message), { id: 'loading-image-toast' });
     }
-  };
-  
-  // Close screenshot modal
-  const closeScreenshotModal = () => {
-    setSelectedScreenshot(null);
   };
   
   // Render screenshot card
   const ScreenshotCard = ({ screenshot }) => (
     <div 
       key={screenshot._id} 
-      className={`bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow border-l-4 ${
+      className={`bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow border-l-4 ${
         screenshot.source === 'user' 
           ? 'border-primary-500' 
           : 'border-warning-500'
       }`}
-      onClick={() => openScreenshotModal(screenshot)}
     >
       <div className="w-full h-48 bg-gray-100 flex items-center justify-center relative group">
         {screenshot.thumbnailUrl ? (
@@ -543,11 +486,12 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
             <img 
               src={screenshot.thumbnailUrl} 
               alt={`Preview of ${screenshot.activisionId}`}
-              className="w-full h-full object-contain"
+              className="w-full h-full object-contain cursor-zoom-in"
+              onClick={() => viewScreenshotInNewTab(screenshot)}
               onError={(e) => {
                 // If the image fails, show a placeholder
                 e.target.onerror = null;
-                e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150' viewBox='0 0 200 150'%3E%3Crect width='200' height='150' fill='%23f0f0f0' /%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='18' text-anchor='middle' fill='%23888' dominant-baseline='middle'%3E${screenshot.activisionId}%3C/text%3E%3C/svg%3E`;
+                e.target.src = generateDummyThumbnail(screenshot);
               }}
             />
             <div className="absolute top-2 right-2">
@@ -576,7 +520,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           </div>
         )}
         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="bg-white p-2 rounded-full">
+          <div className="bg-white p-2 rounded-full cursor-pointer" onClick={() => viewScreenshotInNewTab(screenshot)}>
             <MagnifyingGlassIcon className="h-6 w-6 text-gray-800" />
           </div>
         </div>
@@ -596,6 +540,14 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         </div>
         <div className="mt-1 text-xs text-gray-500 flex justify-between">
           <span>Channel {screenshot.channelId}</span>
+        </div>
+        <div className="mt-3 flex justify-end">
+          <Link 
+            to={`/screenshots/${screenshot._id}`}
+            className="text-xs text-primary-600 hover:text-primary-800"
+          >
+            View details
+          </Link>
         </div>
       </div>
     </div>
@@ -626,42 +578,37 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
                 className="form-input pr-10"
               />
             </div>
-            {!isEmbedded && (
-              <div className="flex space-x-2">
-                <button 
-                  onClick={handleManualScreenshot}
-                  disabled={isRequesting}
-                  className="btn-primary flex items-center"
-                >
-                  {isRequesting ? (
-                    <>
-                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent"></div>
-                      Requesting...
-                    </>
-                  ) : (
-                    <>
-                      <CameraIcon className="h-5 w-5 mr-2" />
-                      Take Screenshot
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={refreshData}
-                  disabled={isRefreshing}
-                  className="btn-secondary flex items-center"
-                  title="Refresh screenshots"
-                >
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} 
-                    fill="none" 
-                    viewBox="0 0 24 24" 
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </button>
-              </div>
+            
+            {/* Manual refresh button - more prominent */}
+            <button
+              onClick={refreshData}
+              disabled={isRefreshing}
+              className="btn-primary flex items-center"
+              title="Refresh screenshots"
+            >
+              <ArrowPathIcon className={`h-5 w-5 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh Screenshots'}
+            </button>
+            
+            {/* Screenshot request button */}
+            {!isEmbedded && playerId && (
+              <button 
+                onClick={handleManualScreenshot}
+                disabled={isRequesting}
+                className="btn-secondary flex items-center"
+              >
+                {isRequesting ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent"></div>
+                    Requesting...
+                  </>
+                ) : (
+                  <>
+                    <CameraIcon className="h-5 w-5 mr-2" />
+                    Take Screenshot
+                  </>
+                )}
+              </button>
             )}
           </div>
           
@@ -678,16 +625,13 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
             <button 
               className="ml-auto text-xs text-primary-600 hover:text-primary-800"
               onClick={() => {
-                if (document.getElementById('advancedFiltersSection').classList.contains('hidden')) {
-                  document.getElementById('advancedFiltersSection').classList.remove('hidden');
-                } else {
-                  document.getElementById('advancedFiltersSection').classList.add('hidden');
+                const filterSection = document.getElementById('advancedFiltersSection');
+                if (filterSection) {
+                  filterSection.classList.toggle('hidden');
                 }
               }}
             >
-              {document.getElementById('advancedFiltersSection')?.classList.contains('hidden') 
-                ? 'Show Filters' 
-                : 'Hide Filters'}
+              Toggle Filters
             </button>
           </div>
           
@@ -766,6 +710,13 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         <div className="rounded-md bg-gray-50 p-6 text-center">
           <UserGroupIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-500">No screenshots available</p>
+          <button 
+            onClick={refreshData}
+            className="mt-4 btn-primary"
+          >
+            <ArrowPathIcon className="h-5 w-5 mr-2 inline" />
+            Refresh
+          </button>
         </div>
       ) : sourceFilter !== 'all' ? (
         // If there's an active source filter, show separate sections
@@ -831,46 +782,17 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           </div>
         </div>
       )}
-
-      {/* Screenshot modal */}
-      {selectedScreenshot && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
-          onClick={closeScreenshotModal}
-        >
-          <div 
-            className="max-w-4xl max-h-[90vh] overflow-auto relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ImageWithZoom 
-              imageData={selectedScreenshot.imageData} 
-              altText={`Screenshot from ${selectedScreenshot.activisionId}`}
-            />
-            <div className="mt-4 text-center text-white">
-              <p>
-                Screenshot from {selectedScreenshot.activisionId} - 
-                Channel {selectedScreenshot.channelId} - 
-                {new Date(selectedScreenshot.capturedAt).toLocaleString()}
-              </p>
-              <p className="mt-1">
-                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${
-                  selectedScreenshot.source === 'user' 
-                    ? 'bg-primary-100 text-primary-800' 
-                    : 'bg-warning-100 text-warning-800'
-                }`}>
-                  {selectedScreenshot.source === 'user' ? 'User Submitted' : 'Judge Requested'}
-                </span>
-              </p>
-              <Link 
-                to={`/screenshots/${selectedScreenshot._id}`}
-                className="mt-2 inline-block text-primary-300 hover:text-primary-100"
-              >
-                View full details
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
+      
+      {/* Help text for using screenshots */}
+      <div className="bg-primary-50 p-4 rounded-lg text-sm text-primary-800 mt-6">
+        <h3 className="font-medium mb-2">How to use screenshots:</h3>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>Click on any screenshot preview to open it in a new tab for native browser zoom</li>
+          <li>Use the "Refresh Screenshots" button to check for new screenshots without reloading the page</li>
+          <li>Use filters to find specific screenshots by player ID or date</li>
+          <li>Click "View details" for more information about each screenshot</li>
+        </ul>
+      </div>
     </div>
   );
 };
