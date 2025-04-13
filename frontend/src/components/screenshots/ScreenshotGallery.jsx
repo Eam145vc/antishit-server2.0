@@ -1,49 +1,4 @@
-// Request screenshot manually
-  const handleManualScreenshot = async () => {
-    try {
-      setIsRequesting(true);
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
-      
-      // If there's no player ID, show error
-      if (!playerId && !id) {
-        toast.error('Could not identify player');
-        return;
-      }
-      
-      const response = await axios.get(`${apiUrl}/players/${playerId || id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      const { activisionId, currentChannelId } = response.data;
-      
-      if (!activisionId || !currentChannelId) {
-        toast.error('Incomplete player information');
-        return;
-      }
-      
-      console.log('Requesting screenshot for:', { activisionId, currentChannelId });
-      
-      // IMPORTANTE: Crear una marca de tiempo para esta solicitud que usaremos para rastrearla
-      const requestTime = new Date();
-      
-      // Almacenar en una lista de solicitudes pendientes para ayudar con la detección de origen
-      setPendingJudgeRequests([
-        ...pendingJudgeRequests,
-        {
-          activisionId,
-          channelId: currentChannelId,
-          requestTime,
-          judgeId: localStorage.getItem('userId') || "unknown",
-        }
-      ]);
-      
-      // Almacenar información que identifica que esta fue una solicitud de juez
-      // SOLUCIÓN: Forzamos tipo "judge" en la solicitud
-      const requestInfo = {
-        requestedBy: "JUDGE_EXPLICIT", // Valor inconfundible
-        requestType: "JUDGE_REQUESTED", // Valor inconfundible
-        judgeimport { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
@@ -61,7 +16,7 @@ import {
 import toast from 'react-hot-toast';
 import { useSocket } from '../../context/SocketContext';
 
-// Componente para visualizar imágenes con zoom
+// Component for viewing images with zoom
 const ImageWithZoom = ({ imageData, altText }) => {
   const [scale, setScale] = useState(1);
   const maxScale = 3;
@@ -150,57 +105,57 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   const [error, setError] = useState(null);
   const [isRequesting, setIsRequesting] = useState(false);
   
-  // Nuevos estados para los filtros
+  // New states for filters
   const [dateFilter, setDateFilter] = useState({
     startDate: '',
     endDate: ''
   });
   const [sourceFilter, setSourceFilter] = useState('all'); // 'all', 'user', 'judge'
   
-  // Función para forzar la detección correcta del origen
+  // Function to force correct source detection
   const forceCorrectSource = (screenshot) => {
-    // Este es un parche rápido para asegurarnos que se detecte correctamente
-    // Si sabemos que hay un problema específico con las solicitudes del juez
-    // que siempre aparecen como usuario, podemos usar esta lógica
+    // This is a quick patch to ensure correct detection
+    // If we know there's a specific problem with judge requests
+    // always appearing as user, we can use this logic
     
-    // 1. Verificamos explícitamente si hay algún campo que indique juez
+    // 1. Explicitly check if there's any field that indicates a judge
     if (screenshot.requestedBy || 
         screenshot.judgeId || 
         (screenshot.notes && screenshot.notes.includes("judge"))) {
       return "judge";
     }
     
-    // 2. Verificamos si la captura tiene marca de tiempo reciente o está dentro
-    // de cierto tiempo después de una solicitud de juez conocida
+    // 2. Check if the capture has a recent timestamp or is within
+    // a certain time after a known judge request
     const captureTime = new Date(screenshot.capturedAt || screenshot.timestamp || new Date());
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     
-    // Si la captura es muy reciente y hay solicitudes pendientes de jueces, asumimos que es del juez
-    // Esto es un enfoque simplificado - en producción necesitarías un rastreo más preciso
+    // If the capture is very recent and there are pending judge requests, assume it's from a judge
+    // This is a simplified approach - in production you'd need more precise tracking
     if (captureTime > fiveMinutesAgo && pendingJudgeRequests.length > 0) {
       return "judge";
     }
     
-    // 3. Verificar si el ID sigue algún patrón específico que podamos usar para identificar
-    // Este es un ejemplo - deberías adaptar esto a tu sistema real
+    // 3. Check if the ID follows any specific pattern we can use to identify
+    // This is an example - you should adapt this to your real system
     if (screenshot._id) {
       const idStr = screenshot._id.toString();
-      // Si el ID termina en un dígito par, asumimos que es una solicitud de juez
-      // Esto es solo para demostración - en un sistema real necesitarías lógica más robusta
+      // If the ID ends in an even digit, assume it's a judge request
+      // This is just for demonstration - in a real system you'd need more robust logic
       const lastChar = idStr.charAt(idStr.length - 1);
       if (["0", "2", "4", "6", "8"].includes(lastChar)) {
         return "judge";
       }
     }
     
-    // Por defecto, lo consideramos enviado por el usuario
+    // By default, consider it submitted by the user
     return "user";
   };
   
-  // Lista de solicitudes pendientes de jueces para rastreo
+  // List of pending judge requests for tracking
   const [pendingJudgeRequests, setPendingJudgeRequests] = useState([]);
   
-  // Función para actualizar datos
+  // Function to update data
   const refreshData = async () => {
     try {
       setIsRefreshing(true);
@@ -228,16 +183,16 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       console.log('Screenshots response:', response.data);
       
       if (response.data && Array.isArray(response.data)) {
-        // Procesar los datos con la función de forzar origen correcto
+        // Process the data with the force correct origin function
         const processedScreenshots = response.data.map(screenshot => {
-          // Intentar cargar una miniatura real
+          // Try to load an actual thumbnail
           let thumbnailUrl = null;
           
-          // Intentar generar una miniatura a partir de la imagen original
+          // Try to generate a thumbnail from the original image
           if (screenshot.imageData && typeof screenshot.imageData === 'string') {
             thumbnailUrl = screenshot.imageData;
           } else {
-            // Si no hay imageData, intentar cargar desde el ID
+            // If there's no imageData, try to load from the ID
             thumbnailUrl = `${apiUrl}/screenshots/${screenshot._id}/thumbnail`;
           }
           
@@ -249,7 +204,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         });
         
         setScreenshots(processedScreenshots);
-        // Aplicamos los filtros actuales a los nuevos datos
+        // Apply current filters to the new data
         applyFilters(processedScreenshots);
         
         toast.success(`${processedScreenshots.length} screenshots loaded`);
@@ -291,10 +246,10 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       
       console.log('Requesting screenshot for:', { activisionId, currentChannelId });
       
-      // IMPORTANTE: Crear una marca de tiempo para esta solicitud que usaremos para rastrearla
+      // IMPORTANT: Create a timestamp for this request which we'll use to track it
       const requestTime = new Date();
       
-      // Almacenar en una lista de solicitudes pendientes para ayudar con la detección de origen
+      // Store in a list of pending requests to help with origin detection
       setPendingJudgeRequests([
         ...pendingJudgeRequests,
         {
@@ -305,14 +260,14 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         }
       ]);
       
-      // Almacenar información que identifica que esta fue una solicitud de juez
-      // SOLUCIÓN: Forzamos tipo "judge" en la solicitud
+      // Store information that identifies this was a judge request
+      // SOLUTION: Force "judge" type in the request
       const requestInfo = {
-        requestedBy: "JUDGE_EXPLICIT", // Valor inconfundible
-        requestType: "JUDGE_REQUESTED", // Valor inconfundible
+        requestedBy: "JUDGE_EXPLICIT", // Unmistakable value
+        requestType: "JUDGE_REQUESTED", // Unmistakable value
         judgeId: localStorage.getItem('userId') || "unknown_judge",
         requestTime: requestTime.toISOString(),
-        // Añadir un marcador específico para nuestro sistema
+        // Add a specific marker for our system
         FORCE_JUDGE_TYPE: true
       };
       
@@ -331,7 +286,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
               channelId: currentChannelId,
               requestInfo: requestInfo,
               notes: "JUDGE REQUESTED - via dashboard",
-              forceJudgeType: true  // Marcador adicional
+              forceJudgeType: true  // Additional marker
             },
             { headers: { 'Authorization': `Bearer ${token}` } }
           );
@@ -345,7 +300,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
             channelId: currentChannelId,
             requestInfo: requestInfo,
             notes: "JUDGE REQUESTED - via dashboard",
-            forceJudgeType: true  // Marcador adicional 
+            forceJudgeType: true  // Additional marker
           },
           { headers: { 'Authorization': `Bearer ${token}` } }
         );
@@ -358,10 +313,10 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         duration: 5000
       });
       
-      // Actualizamos después de un tiempo para ver si llegó la nueva captura
+      // Update after a while to see if the new capture arrived
       setTimeout(() => {
         refreshData();
-      }, 10000); // Esperar 10 segundos y actualizar
+      }, 10000); // Wait 10 seconds and update
       
     } catch (error) {
       console.error('Error requesting screenshot:', error);
@@ -371,10 +326,10 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     }
   };
   
-  // Cargar capturas de pantalla con imágenes de previsualización
+  // Load screenshots with preview images
   useEffect(() => {
     if (propsScreenshots) {
-      // Procesar las capturas con una lógica forzada para determinar el origen
+      // Process captures with forced logic to determine origin
       const processedScreenshots = propsScreenshots.map(screenshot => {
         return {
           ...screenshot,
@@ -391,7 +346,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     fetchScreenshots();
   }, [propsScreenshots, playerId, id]);
   
-  // Función separada para cargar capturas
+  // Separate function to load captures
   const fetchScreenshots = async () => {
     try {
       setIsLoading(true);
@@ -418,9 +373,9 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       const response = await axios.get(url, { headers });
       console.log('Screenshots response:', response.data);
       
-      // Procesar las capturas con la función de forzar origen correcto
+      // Process captures with the force correct origin function
       const processedScreenshots = response.data.map(screenshot => {
-        // Intentar generar o cargar una miniatura
+        // Try to generate or load a thumbnail
         return {
           ...screenshot,
           source: forceCorrectSource(screenshot),
@@ -428,13 +383,13 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         };
       });
       
-      // Verificar si tenemos capturas
+      // Check if we have captures
       if (processedScreenshots.length === 0) {
         console.log('No screenshots found');
       } else {
         console.log(`Found ${processedScreenshots.length} screenshots`);
         
-        // Depuración: contar cuántas son de cada tipo para verificar la lógica
+        // Debug: count how many are of each type to verify logic
         const judgeCount = processedScreenshots.filter(s => s.source === 'judge').length;
         const userCount = processedScreenshots.filter(s => s.source === 'user').length;
         console.log(`Judge screenshots: ${judgeCount}, User screenshots: ${userCount}`);
@@ -453,15 +408,15 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     }
   };
   
-  // Generar miniatura ficticia para simulación
+  // Generate dummy thumbnail for simulation
   const generateDummyThumbnail = (screenshot) => {
-    // En un entorno real, usarías una URL real a una miniatura
-    // Para demostración, generamos un color basado en el ID
+    // In a real environment, you'd use a real URL to a thumbnail
+    // For demonstration, we generate a color based on the ID
     const id = screenshot._id || '';
     const hash = id.split('').reduce((acc, char) => char.charCodeAt(0) + acc, 0);
     const hue = hash % 360;
     
-    // Generar una imagen SVG como data-url con un color único
+    // Generate an SVG image as a data-url with a unique color
     return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150' viewBox='0 0 200 150'%3E%3Crect width='200' height='150' fill='hsl(${hue}, 70%25, 80%25)' /%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='18' text-anchor='middle' fill='%23333' dominant-baseline='middle'%3E${screenshot.activisionId}%3C/text%3E%3C/svg%3E`;
   };
   
@@ -500,7 +455,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     setFilteredScreenshots(filtered);
   };
 
-  // Aplicar filtros cuando cambien los criterios
+  // Apply filters when criteria change
   useEffect(() => {
     applyFilters();
   }, [screenshots, searchTerm, dateFilter, sourceFilter]);
@@ -590,7 +545,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
               alt={`Preview of ${screenshot.activisionId}`}
               className="w-full h-full object-contain"
               onError={(e) => {
-                // Si la imagen falla, mostrar un placeholder
+                // If the image fails, show a placeholder
                 e.target.onerror = null;
                 e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150' viewBox='0 0 200 150'%3E%3Crect width='200' height='150' fill='%23f0f0f0' /%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='18' text-anchor='middle' fill='%23888' dominant-baseline='middle'%3E${screenshot.activisionId}%3C/text%3E%3C/svg%3E`;
               }}
@@ -813,7 +768,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           <p className="text-gray-500">No screenshots available</p>
         </div>
       ) : sourceFilter !== 'all' ? (
-        // Si hay un filtro de fuente activo, mostramos secciones separadas
+        // If there's an active source filter, show separate sections
         <div className="space-y-8">
           {/* User submitted screenshots section */}
           {userScreenshots.length > 0 && sourceFilter === 'user' && (
@@ -848,7 +803,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           )}
         </div>
       ) : (
-        // Si no hay filtro de fuente, combinamos todo en una sola vista con bordes de color distintivos
+        // If there's no source filter, combine everything in a single view with distinctive color borders
         <div>
           <div className="mb-4 p-3 bg-gray-50 rounded-lg">
             <h3 className="text-lg font-medium text-gray-900 mb-2">Screenshot Categories</h3>
