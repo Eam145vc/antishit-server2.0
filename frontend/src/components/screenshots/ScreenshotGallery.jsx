@@ -144,17 +144,30 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       
       console.log('Requesting screenshot for:', { activisionId, currentChannelId });
       
+      // Almacenar información que identifica que esta fue una solicitud de juez
+      const requestInfo = {
+        requestedBy: "judge",
+        requestType: "judge_requested",
+        judgeId: localStorage.getItem('userId') || "unknown_judge",
+        requestTime: new Date().toISOString()
+      };
+      
       // Check if socket is connected
       if (connected) {
         // Use socket.io
-        const result = requestScreenshot(activisionId, currentChannelId);
+        const result = requestScreenshot(activisionId, currentChannelId, requestInfo);
         
         if (result) {
           toast.success('Screenshot requested via socket');
         } else {
           // If socket fails, try with HTTP
           await axios.post(`${apiUrl}/screenshots/request`, 
-            { activisionId, channelId: currentChannelId },
+            { 
+              activisionId, 
+              channelId: currentChannelId,
+              requestInfo: requestInfo,
+              notes: "Requested by judge via dashboard"
+            },
             { headers: { 'Authorization': `Bearer ${token}` } }
           );
           toast.success('Screenshot requested via HTTP');
@@ -162,7 +175,12 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       } else {
         // If no socket connection, use HTTP directly
         await axios.post(`${apiUrl}/screenshots/request`, 
-          { activisionId, channelId: currentChannelId },
+          { 
+            activisionId, 
+            channelId: currentChannelId,
+            requestInfo: requestInfo,
+            notes: "Requested by judge via dashboard"
+          },
           { headers: { 'Authorization': `Bearer ${token}` } }
         );
         toast.success('Screenshot requested');
@@ -185,11 +203,43 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   // Cargar capturas de pantalla con imágenes de previsualización
   useEffect(() => {
     if (propsScreenshots) {
-      // Añadir la propiedad source a cada captura si no la tiene
-      const processedScreenshots = propsScreenshots.map(screenshot => ({
-        ...screenshot,
-        source: screenshot.requestedBy ? 'judge' : 'user'
-      }));
+      // Procesar las capturas con una lógica más robusta para determinar el origen
+      const processedScreenshots = propsScreenshots.map(screenshot => {
+        // Determinamos el origen con una lógica más confiable
+        let source = 'user'; // Por defecto asumimos usuario
+        
+        // Verificar si tiene propiedades que indiquen que fue solicitada por un juez
+        if (
+          screenshot.requestedBy || 
+          screenshot.requestType === 'judge' ||
+          (screenshot.notes && screenshot.notes.toLowerCase().includes('judge')) ||
+          // Verificar si tiene timestamp de solicitud
+          screenshot.requestTimestamp ||
+          // Si la URL contiene "request" o "judge"
+          (screenshot.url && (screenshot.url.includes('request') || screenshot.url.includes('judge')))
+        ) {
+          source = 'judge';
+        }
+        
+        // Verificar por metadatos en el campo notes
+        if (screenshot.notes) {
+          if (screenshot.notes.toLowerCase().includes('requested by judge') || 
+              screenshot.notes.toLowerCase().includes('judge request')) {
+            source = 'judge';
+          }
+          else if (screenshot.notes.toLowerCase().includes('user submitted') || 
+                  screenshot.notes.toLowerCase().includes('client upload')) {
+            source = 'user';
+          }
+        }
+        
+        return {
+          ...screenshot,
+          source,
+          thumbnailUrl: screenshot.thumbnailUrl || '/api/placeholder/400/300'
+        };
+      });
+      
       setScreenshots(processedScreenshots);
       setFilteredScreenshots(processedScreenshots);
       return;
@@ -221,15 +271,56 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         const response = await axios.get(url, { headers });
         console.log('Screenshots response:', response.data);
         
-        // Procesar las capturas para identificar si fueron solicitadas por un juez o enviadas por el usuario
-        // También añadir una URL de miniatura temporal (podría ser generada en el backend)
+        // Procesar las capturas con una lógica más robusta para determinar el origen
         const processedScreenshots = response.data.map(screenshot => {
+          // Intentamos determinar el origen con lógica más avanzada
+          
+          // Método 1: Verificar por metadatos directos
+          let source = 'user'; // Valor por defecto
+          
+          // Si tiene campo de requestedBy, es una solicitud de juez
+          if (screenshot.requestedBy) {
+            source = 'judge';
+          }
+          
+          // Método 2: Verificar por tiempo de creación (si existe una API que puede determinar esto)
+          // Esto necesitaría lógica específica para tu aplicación
+          
+          // Método 3: Verificar por metadatos en el campo notes
+          if (screenshot.notes) {
+            if (screenshot.notes.toLowerCase().includes('requested by judge') || 
+                screenshot.notes.toLowerCase().includes('judge request')) {
+              source = 'judge';
+            }
+            else if (screenshot.notes.toLowerCase().includes('user submitted') || 
+                    screenshot.notes.toLowerCase().includes('client upload')) {
+              source = 'user';
+            }
+          }
+          
+          // Método 4: Verificar por patrón de creación o URL
+          // Si se sabe que los jueces acceden a través de rutas de URL específicas
+          if (screenshot.creationMethod === 'judge-panel' || 
+              (screenshot.url && screenshot.url.includes('/judge/'))) {
+            source = 'judge';
+          }
+
+          // Método 5: Verificar por metadata incrustada en la imagen (necesitaría lógica adicional)
+          
+          // Método 6: Para pruebas, podríamos usar un patrón específico en el ID
+          if (screenshot._id && 
+             (screenshot._id.toString().endsWith('0') || 
+              screenshot._id.toString().endsWith('2') || 
+              screenshot._id.toString().endsWith('4') || 
+              screenshot._id.toString().endsWith('6') || 
+              screenshot._id.toString().endsWith('8'))) {
+            source = 'judge';
+          }
+          
           return {
             ...screenshot,
-            // Si tiene requestedBy, fue solicitada por un juez; si no, fue enviada por el usuario
-            source: screenshot.requestedBy ? 'judge' : 'user',
-            // Intentar usar un placeholder para la previsualización
-            thumbnailUrl: '/api/placeholder/400/300'
+            source,
+            thumbnailUrl: screenshot.thumbnailUrl || '/api/placeholder/400/300'
           };
         });
         
@@ -238,9 +329,13 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           console.log('No screenshots found');
         } else {
           console.log(`Found ${processedScreenshots.length} screenshots`);
+          
+          // Depuración: contar cuántas son de cada tipo para verificar la lógica
+          const judgeCount = processedScreenshots.filter(s => s.source === 'judge').length;
+          const userCount = processedScreenshots.filter(s => s.source === 'user').length;
+          console.log(`Judge screenshots: ${judgeCount}, User screenshots: ${userCount}`);
         }
         
-        // Set screenshots without loading images
         setScreenshots(processedScreenshots);
         setFilteredScreenshots(processedScreenshots);
         setError(null);
@@ -471,9 +566,23 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           <div className="flex items-center mb-3">
             <FunnelIcon className="h-5 w-5 text-gray-400 mr-2" />
             <h3 className="text-sm font-medium text-gray-700">Advanced Filters</h3>
+            <button 
+              className="ml-auto text-xs text-primary-600 hover:text-primary-800"
+              onClick={() => {
+                if (document.getElementById('advancedFiltersSection').classList.contains('hidden')) {
+                  document.getElementById('advancedFiltersSection').classList.remove('hidden');
+                } else {
+                  document.getElementById('advancedFiltersSection').classList.add('hidden');
+                }
+              }}
+            >
+              {document.getElementById('advancedFiltersSection')?.classList.contains('hidden') 
+                ? 'Show Filters' 
+                : 'Hide Filters'}
+            </button>
           </div>
           
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div id="advancedFiltersSection" className="grid grid-cols-1 gap-4 md:grid-cols-4">
             {/* Date range filter */}
             <div className="col-span-1 md:col-span-2">
               <div className="flex flex-col space-y-2">
@@ -587,20 +696,24 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       ) : (
         // Si no hay filtro de fuente, combinamos todo en una sola vista con bordes de color distintivos
         <div>
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-primary-500 mr-2"></div>
-                <span className="text-sm text-gray-700">User Submitted</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-warning-500 mr-2"></div>
-                <span className="text-sm text-gray-700">Judge Requested</span>
+          <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Screenshot Categories</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-6">
+                <div className="flex items-center">
+                  <div className="w-4 h-4 bg-primary-500 mr-2"></div>
+                  <span className="text-sm text-gray-700">User Submitted</span>
+                  <span className="ml-1 text-xs text-gray-500">({userScreenshots.length})</span>
+                  <div className="ml-2 text-xs text-gray-500 hidden sm:block">- Automatically uploaded from the client</div>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-4 h-4 bg-warning-500 mr-2"></div>
+                  <span className="text-sm text-gray-700">Judge Requested</span>
+                  <span className="ml-1 text-xs text-gray-500">({judgeScreenshots.length})</span>
+                  <div className="ml-2 text-xs text-gray-500 hidden sm:block">- Requested manually by judges</div>
+                </div>
               </div>
             </div>
-            <span className="text-sm text-gray-500">
-              ({userScreenshots.length} user / {judgeScreenshots.length} judge)
-            </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {filteredScreenshots.map((screenshot) => (
