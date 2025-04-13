@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
@@ -8,12 +8,95 @@ import {
   ExclamationTriangleIcon, 
   UserGroupIcon,
   CalendarIcon,
-  FilterIcon,
+  FunnelIcon,
   UserIcon,
-  ShieldCheckIcon
+  ShieldCheckIcon,
+  MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { useSocket } from '../../context/SocketContext';
+
+// Componente para visualizar imágenes con zoom
+const ImageWithZoom = ({ imageData, altText }) => {
+  const [zoomActive, setZoomActive] = useState(false);
+  const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
+  const [zoomLevel, setZoomLevel] = useState(2); // Factor de zoom inicial
+  const imageRef = useRef(null);
+
+  const handleMouseMove = (e) => {
+    if (!imageRef.current) return;
+    
+    // Obtener posición relativa del cursor dentro de la imagen
+    const rect = imageRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    
+    setZoomPosition({ x, y });
+  };
+
+  const toggleZoom = () => {
+    setZoomActive(!zoomActive);
+  };
+
+  const handleZoomLevelChange = (e) => {
+    setZoomLevel(parseFloat(e.target.value));
+  };
+
+  return (
+    <div className="relative">
+      <img 
+        ref={imageRef}
+        src={imageData} 
+        alt={altText}
+        className="max-w-full max-h-[70vh] object-contain cursor-zoom-in"
+        onMouseMove={handleMouseMove}
+        onClick={toggleZoom}
+      />
+      {zoomActive && (
+        <div className="absolute inset-0 flex flex-col justify-between bg-white bg-opacity-10 p-4">
+          <div className="flex justify-between w-full z-10">
+            <div className="bg-black bg-opacity-50 rounded p-2 text-white">
+              <label className="text-sm mr-2">Zoom Level:</label>
+              <input 
+                type="range" 
+                min="1.5" 
+                max="5" 
+                step="0.5" 
+                value={zoomLevel} 
+                onChange={handleZoomLevelChange}
+                className="w-32"
+              />
+              <span className="text-sm ml-2">{zoomLevel}x</span>
+            </div>
+            <button 
+              onClick={toggleZoom}
+              className="bg-black bg-opacity-50 rounded p-2 text-white"
+            >
+              Close Zoom
+            </button>
+          </div>
+          
+          <div 
+            className="absolute mx-auto my-auto top-0 left-0 right-0 bottom-0 flex items-center justify-center"
+            style={{ pointerEvents: 'none' }}
+          >
+            <div 
+              className="border-2 border-white rounded-full shadow-lg overflow-hidden"
+              style={{ 
+                width: 200, 
+                height: 200,
+                backgroundImage: `url(${imageData})`,
+                backgroundPosition: `${zoomPosition.x * 100}% ${zoomPosition.y * 100}%`,
+                backgroundSize: `${zoomLevel * 100}%`,
+                backgroundRepeat: 'no-repeat'
+              }}
+            ></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded = false }) => {
   const { id } = useParams();
@@ -267,8 +350,24 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
       onClick={() => openScreenshotModal(screenshot)}
     >
-      <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
-        <p className="text-gray-500">Click to view</p>
+      <div className="w-full h-48 bg-gray-100 flex items-center justify-center relative group">
+        {screenshot.thumbnailUrl ? (
+          <img 
+            src={screenshot.thumbnailUrl} 
+            alt={`Preview of ${screenshot.activisionId}`}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full w-full">
+            <CameraIcon className="h-8 w-8 text-gray-400 mb-2" />
+            <p className="text-gray-500 text-sm">Preview not available</p>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="bg-white p-2 rounded-full">
+            <MagnifyingGlassIcon className="h-6 w-6 text-gray-800" />
+          </div>
+        </div>
       </div>
       
       <div className="p-4">
@@ -351,7 +450,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         {/* Advanced filters - Date and Source */}
         <div className="bg-gray-50 p-4 rounded-lg">
           <div className="flex items-center mb-3">
-            <FilterIcon className="h-5 w-5 text-gray-400 mr-2" />
+            <FunnelIcon className="h-5 w-5 text-gray-400 mr-2" />
             <h3 className="text-sm font-medium text-gray-700">Advanced Filters</h3>
           </div>
           
@@ -474,13 +573,12 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           onClick={closeScreenshotModal}
         >
           <div 
-            className="max-w-4xl max-h-[90vh] overflow-auto"
+            className="max-w-4xl max-h-[90vh] overflow-auto relative"
             onClick={(e) => e.stopPropagation()}
           >
-            <img 
-              src={selectedScreenshot.imageData} 
-              alt={`Screenshot from ${selectedScreenshot.activisionId}`}
-              className="max-w-full max-h-[90vh] object-contain"
+            <ImageWithZoom 
+              imageData={selectedScreenshot.imageData} 
+              altText={`Screenshot from ${selectedScreenshot.activisionId}`}
             />
             <div className="mt-4 text-center text-white">
               <p>
