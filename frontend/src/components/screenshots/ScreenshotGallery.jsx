@@ -6,7 +6,11 @@ import { es } from 'date-fns/locale';
 import { 
   CameraIcon, 
   ExclamationTriangleIcon, 
-  UserGroupIcon 
+  UserGroupIcon,
+  CalendarIcon,
+  FilterIcon,
+  UserIcon,
+  ShieldCheckIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { useSocket } from '../../context/SocketContext';
@@ -23,6 +27,13 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   const [isLoading, setIsLoading] = useState(!propsScreenshots);
   const [error, setError] = useState(null);
   const [isRequesting, setIsRequesting] = useState(false);
+  
+  // Nuevos estados para los filtros
+  const [dateFilter, setDateFilter] = useState({
+    startDate: '',
+    endDate: ''
+  });
+  const [sourceFilter, setSourceFilter] = useState('all'); // 'all', 'user', 'judge'
   
   // Request screenshot manually
   const handleManualScreenshot = async () => {
@@ -122,9 +133,18 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         const response = await axios.get(url, { headers });
         console.log('Screenshots response:', response.data);
         
+        // Procesar las capturas para identificar si fueron solicitadas por un juez o enviadas por el usuario
+        const processedScreenshots = response.data.map(screenshot => {
+          return {
+            ...screenshot,
+            // Si tiene requestedBy, fue solicitada por un juez; si no, fue enviada por el usuario
+            source: screenshot.requestedBy ? 'judge' : 'user'
+          };
+        });
+        
         // Set screenshots without loading images
-        setScreenshots(response.data);
-        setFilteredScreenshots(response.data);
+        setScreenshots(processedScreenshots);
+        setFilteredScreenshots(processedScreenshots);
         setError(null);
       } catch (err) {
         console.error('Error loading screenshots:', err);
@@ -139,17 +159,54 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     fetchScreenshots();
   }, [propsScreenshots, playerId, id, navigate]);
   
-  // Filter screenshots
+  // Filter screenshots with new filters
   useEffect(() => {
     const filtered = screenshots.filter((screenshot) => {
+      // Filter by search term
       const matchesSearch = !searchTerm || 
         screenshot.activisionId?.toLowerCase().includes(searchTerm.toLowerCase());
       
-      return matchesSearch;
+      // Filter by date
+      let matchesDate = true;
+      if (dateFilter.startDate) {
+        const startDate = new Date(dateFilter.startDate);
+        startDate.setHours(0, 0, 0, 0); // Start of day
+        const screenshotDate = new Date(screenshot.capturedAt);
+        matchesDate = matchesDate && screenshotDate >= startDate;
+      }
+      
+      if (dateFilter.endDate) {
+        const endDate = new Date(dateFilter.endDate);
+        endDate.setHours(23, 59, 59, 999); // End of day
+        const screenshotDate = new Date(screenshot.capturedAt);
+        matchesDate = matchesDate && screenshotDate <= endDate;
+      }
+      
+      // Filter by source (user/judge)
+      let matchesSource = true;
+      if (sourceFilter !== 'all') {
+        matchesSource = screenshot.source === sourceFilter;
+      }
+      
+      return matchesSearch && matchesDate && matchesSource;
     });
     
     setFilteredScreenshots(filtered);
-  }, [screenshots, searchTerm]);
+  }, [screenshots, searchTerm, dateFilter, sourceFilter]);
+  
+  // Reset all filters
+  const resetFilters = () => {
+    setSearchTerm('');
+    setDateFilter({
+      startDate: '',
+      endDate: ''
+    });
+    setSourceFilter('all');
+  };
+  
+  // Group screenshots by source
+  const userScreenshots = filteredScreenshots.filter(ss => ss.source === 'user');
+  const judgeScreenshots = filteredScreenshots.filter(ss => ss.source === 'judge');
   
   // Open screenshot modal
   const openScreenshotModal = async (screenshot) => {
@@ -202,6 +259,43 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   const closeScreenshotModal = () => {
     setSelectedScreenshot(null);
   };
+  
+  // Render screenshot card
+  const ScreenshotCard = ({ screenshot }) => (
+    <div 
+      key={screenshot._id} 
+      className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+      onClick={() => openScreenshotModal(screenshot)}
+    >
+      <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
+        <p className="text-gray-500">Click to view</p>
+      </div>
+      
+      <div className="p-4">
+        <div className="flex justify-between items-center">
+          <span className="text-sm font-medium text-gray-900">
+            {screenshot.activisionId}
+          </span>
+          <span className="text-xs text-gray-500">
+            {formatDistanceToNow(new Date(screenshot.capturedAt), {
+              addSuffix: true,
+              locale: es
+            })}
+          </span>
+        </div>
+        <div className="mt-1 text-xs text-gray-500 flex justify-between">
+          <span>Channel {screenshot.channelId}</span>
+          <span className={`px-2 py-0.5 rounded-full text-xs ${
+            screenshot.source === 'user' 
+              ? 'bg-primary-100 text-primary-800' 
+              : 'bg-warning-100 text-warning-800'
+          }`}>
+            {screenshot.source === 'user' ? 'User' : 'Judge'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -215,41 +309,108 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       )}
       
       {/* Filter controls */}
-      <div className="flex flex-col space-y-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
-        <div className="flex flex-col space-y-4 md:flex-row md:items-center md:space-x-4 md:space-y-0">
-          {/* Search */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search by Activision ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="form-input pr-10"
-            />
+      <div className="space-y-4">
+        <div className="flex flex-col space-y-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
+          <div className="flex flex-col space-y-4 md:flex-row md:items-center md:space-x-4 md:space-y-0">
+            {/* Search */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by Activision ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="form-input pr-10"
+              />
+            </div>
+            {!isEmbedded && (
+              <button 
+                onClick={handleManualScreenshot}
+                disabled={isRequesting}
+                className="btn-primary flex items-center"
+              >
+                {isRequesting ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent"></div>
+                    Requesting...
+                  </>
+                ) : (
+                  <>
+                    <CameraIcon className="h-5 w-5 mr-2" />
+                    Take Screenshot
+                  </>
+                )}
+              </button>
+            )}
           </div>
-          {!isEmbedded && (
-            <button 
-              onClick={handleManualScreenshot}
-              disabled={isRequesting}
-              className="btn-primary flex items-center"
-            >
-              {isRequesting ? (
-                <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent"></div>
-                  Requesting...
-                </>
-              ) : (
-                <>
-                  <CameraIcon className="h-5 w-5 mr-2" />
-                  Take Screenshot
-                </>
-              )}
-            </button>
-          )}
+          
+          <div className="text-right text-sm text-gray-500">
+            {filteredScreenshots.length} screenshots
+          </div>
         </div>
         
-        <div className="text-right text-sm text-gray-500">
-          {filteredScreenshots.length} screenshots
+        {/* Advanced filters - Date and Source */}
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="flex items-center mb-3">
+            <FilterIcon className="h-5 w-5 text-gray-400 mr-2" />
+            <h3 className="text-sm font-medium text-gray-700">Advanced Filters</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            {/* Date range filter */}
+            <div className="col-span-1 md:col-span-2">
+              <div className="flex flex-col space-y-2">
+                <label className="text-xs font-medium text-gray-700 flex items-center">
+                  <CalendarIcon className="h-4 w-4 mr-1" />
+                  Date Range
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="date"
+                    value={dateFilter.startDate}
+                    onChange={(e) => setDateFilter({...dateFilter, startDate: e.target.value})}
+                    className="form-input text-sm"
+                    placeholder="Start date"
+                  />
+                  <input
+                    type="date"
+                    value={dateFilter.endDate}
+                    onChange={(e) => setDateFilter({...dateFilter, endDate: e.target.value})}
+                    className="form-input text-sm"
+                    placeholder="End date"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Source filter */}
+            <div className="col-span-1">
+              <div className="flex flex-col space-y-2">
+                <label className="text-xs font-medium text-gray-700 flex items-center">
+                  <UserIcon className="h-4 w-4 mr-1" />
+                  Source
+                </label>
+                <select
+                  value={sourceFilter}
+                  onChange={(e) => setSourceFilter(e.target.value)}
+                  className="form-input text-sm"
+                >
+                  <option value="all">All Sources</option>
+                  <option value="user">User Submitted</option>
+                  <option value="judge">Judge Requested</option>
+                </select>
+              </div>
+            </div>
+            
+            {/* Reset button */}
+            <div className="col-span-1 flex items-end">
+              <button
+                onClick={resetFilters}
+                className="btn-outline text-sm w-full"
+              >
+                Reset Filters
+              </button>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -271,35 +432,38 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           <p className="text-gray-500">No screenshots available</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filteredScreenshots.map((screenshot) => (
-            <div 
-              key={screenshot._id} 
-              className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => openScreenshotModal(screenshot)}
-            >
-              <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
-                <p className="text-gray-500">Click to view</p>
+        <div className="space-y-8">
+          {/* User submitted screenshots section */}
+          {userScreenshots.length > 0 && (
+            <div>
+              <div className="flex items-center mb-4">
+                <UserIcon className="h-5 w-5 text-primary-600 mr-2" />
+                <h3 className="text-lg font-medium text-gray-900">User Submitted Screenshots</h3>
+                <span className="ml-2 text-sm text-gray-500">({userScreenshots.length})</span>
               </div>
-              
-              <div className="p-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-gray-900">
-                    {screenshot.activisionId}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {formatDistanceToNow(new Date(screenshot.capturedAt), {
-                      addSuffix: true,
-                      locale: es
-                    })}
-                  </span>
-                </div>
-                <div className="mt-1 text-xs text-gray-500">
-                  Channel {screenshot.channelId}
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {userScreenshots.map((screenshot) => (
+                  <ScreenshotCard key={screenshot._id} screenshot={screenshot} />
+                ))}
               </div>
             </div>
-          ))}
+          )}
+          
+          {/* Judge requested screenshots section */}
+          {judgeScreenshots.length > 0 && (
+            <div>
+              <div className="flex items-center mb-4">
+                <ShieldCheckIcon className="h-5 w-5 text-warning-600 mr-2" />
+                <h3 className="text-lg font-medium text-gray-900">Judge Requested Screenshots</h3>
+                <span className="ml-2 text-sm text-gray-500">({judgeScreenshots.length})</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {judgeScreenshots.map((screenshot) => (
+                  <ScreenshotCard key={screenshot._id} screenshot={screenshot} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -323,6 +487,15 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
                 Screenshot from {selectedScreenshot.activisionId} - 
                 Channel {selectedScreenshot.channelId} - 
                 {new Date(selectedScreenshot.capturedAt).toLocaleString()}
+              </p>
+              <p className="mt-1">
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${
+                  selectedScreenshot.source === 'user' 
+                    ? 'bg-primary-100 text-primary-800' 
+                    : 'bg-warning-100 text-warning-800'
+                }`}>
+                  {selectedScreenshot.source === 'user' ? 'User Submitted' : 'Judge Requested'}
+                </span>
               </p>
               <Link 
                 to={`/screenshots/${selectedScreenshot._id}`}
