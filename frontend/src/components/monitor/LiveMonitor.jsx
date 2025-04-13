@@ -177,10 +177,10 @@ const LiveMonitor = () => {
   };
   
   // Manejar solicitud de captura de pantalla
-  const handleRequestScreenshot = async (activisionId) => {
+  const handleRequestScreenshot = async (activisionId, options = {}) => {
     if (!connected || !selectedChannel) {
       toast.error('No hay conexión en tiempo real');
-      return;
+      return false;
     }
     
     try {
@@ -190,8 +190,15 @@ const LiveMonitor = () => {
         [activisionId]: new Date()
       }));
       
+      // Extract options with defaults
+      const { source = 'judge', isJudgeRequest = true } = options;
+      
       // La solicitud se maneja a través del hook useSocket
-      const success = requestScreenshot(activisionId, selectedChannel);
+      const success = requestScreenshot(activisionId, selectedChannel, {
+        source,
+        isJudgeRequest,
+        FORCE_JUDGE_TYPE: true
+      });
       
       if (!success) {
         // Si falló el socket, intentar con HTTP
@@ -208,9 +215,16 @@ const LiveMonitor = () => {
         
         console.log('Intentando solicitud HTTP como respaldo...');
         
+        // Include source and isJudgeRequest in HTTP request
         const response = await axios.post(
           `${apiUrl}/screenshots/request`, 
-          { activisionId, channelId: selectedChannel },
+          { 
+            activisionId, 
+            channelId: selectedChannel,
+            source,
+            isJudgeRequest,
+            FORCE_JUDGE_TYPE: true
+          },
           { headers }
         );
         
