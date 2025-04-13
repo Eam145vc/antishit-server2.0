@@ -182,11 +182,16 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     }
   };
   
-  // Load screenshots
+  // Cargar capturas de pantalla con imágenes de previsualización
   useEffect(() => {
     if (propsScreenshots) {
-      setScreenshots(propsScreenshots);
-      setFilteredScreenshots(propsScreenshots);
+      // Añadir la propiedad source a cada captura si no la tiene
+      const processedScreenshots = propsScreenshots.map(screenshot => ({
+        ...screenshot,
+        source: screenshot.requestedBy ? 'judge' : 'user'
+      }));
+      setScreenshots(processedScreenshots);
+      setFilteredScreenshots(processedScreenshots);
       return;
     }
     
@@ -217,13 +222,23 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         console.log('Screenshots response:', response.data);
         
         // Procesar las capturas para identificar si fueron solicitadas por un juez o enviadas por el usuario
+        // También añadir una URL de miniatura temporal (podría ser generada en el backend)
         const processedScreenshots = response.data.map(screenshot => {
           return {
             ...screenshot,
             // Si tiene requestedBy, fue solicitada por un juez; si no, fue enviada por el usuario
-            source: screenshot.requestedBy ? 'judge' : 'user'
+            source: screenshot.requestedBy ? 'judge' : 'user',
+            // Intentar usar un placeholder para la previsualización
+            thumbnailUrl: '/api/placeholder/400/300'
           };
         });
+        
+        // Verificar si tenemos capturas
+        if (processedScreenshots.length === 0) {
+          console.log('No screenshots found');
+        } else {
+          console.log(`Found ${processedScreenshots.length} screenshots`);
+        }
         
         // Set screenshots without loading images
         setScreenshots(processedScreenshots);
@@ -347,7 +362,11 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   const ScreenshotCard = ({ screenshot }) => (
     <div 
       key={screenshot._id} 
-      className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+      className={`bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow border-l-4 ${
+        screenshot.source === 'user' 
+          ? 'border-primary-500' 
+          : 'border-warning-500'
+      }`}
       onClick={() => openScreenshotModal(screenshot)}
     >
       <div className="w-full h-48 bg-gray-100 flex items-center justify-center relative group">
@@ -530,10 +549,11 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           <UserGroupIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-500">No screenshots available</p>
         </div>
-      ) : (
+      ) : sourceFilter !== 'all' ? (
+        // Si hay un filtro de fuente activo, mostramos secciones separadas
         <div className="space-y-8">
           {/* User submitted screenshots section */}
-          {userScreenshots.length > 0 && (
+          {userScreenshots.length > 0 && sourceFilter === 'user' && (
             <div>
               <div className="flex items-center mb-4">
                 <UserIcon className="h-5 w-5 text-primary-600 mr-2" />
@@ -549,7 +569,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           )}
           
           {/* Judge requested screenshots section */}
-          {judgeScreenshots.length > 0 && (
+          {judgeScreenshots.length > 0 && sourceFilter === 'judge' && (
             <div>
               <div className="flex items-center mb-4">
                 <ShieldCheckIcon className="h-5 w-5 text-warning-600 mr-2" />
@@ -563,6 +583,30 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
               </div>
             </div>
           )}
+        </div>
+      ) : (
+        // Si no hay filtro de fuente, combinamos todo en una sola vista con bordes de color distintivos
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center">
+                <div className="w-4 h-4 bg-primary-500 mr-2"></div>
+                <span className="text-sm text-gray-700">User Submitted</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-4 h-4 bg-warning-500 mr-2"></div>
+                <span className="text-sm text-gray-700">Judge Requested</span>
+              </div>
+            </div>
+            <span className="text-sm text-gray-500">
+              ({userScreenshots.length} user / {judgeScreenshots.length} judge)
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {filteredScreenshots.map((screenshot) => (
+              <ScreenshotCard key={screenshot._id} screenshot={screenshot} />
+            ))}
+          </div>
         </div>
       )}
 
