@@ -23,7 +23,18 @@ const PlayerMonitorCard = ({
   const handleScreenshotRequest = async () => {
     try {
       setIsCapturing(true);
-      await onRequestScreenshot(player.activisionId);
+      
+      // Pass explicit source='judge' when requesting a screenshot from the judge UI
+      const result = await onRequestScreenshot(player.activisionId, { 
+        source: 'judge', 
+        isJudgeRequest: true 
+      });
+      
+      if (result) {
+        // Success!
+        console.log('Judge screenshot request sent successfully');
+      }
+      
       setTimeout(() => setIsCapturing(false), 3000); // Reset after 3 seconds
     } catch (error) {
       console.error("Error requesting screenshot:", error);
@@ -143,18 +154,18 @@ const PlayerMonitorCard = ({
         <div className="flex space-x-3">
           <button
             onClick={handleScreenshotRequest}
-            disabled={!isReallyOnline || isCapturing}
+            disabled={!isReallyOnline || isCapturing || player.isPendingScreenshot}
             className={`flex-1 rounded-md py-2 text-xs font-medium ${
               !isReallyOnline
                 ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                : isCapturing
+                : isCapturing || player.isPendingScreenshot
                 ? 'bg-blue-700 text-white'
                 : 'bg-primary-600 text-white hover:bg-primary-700'
             }`}
           >
             <div className="flex items-center justify-center">
               <CameraIcon className="mr-1 h-4 w-4" />
-              {isCapturing ? 'Solicitando...' : 'Capturar'}
+              {isCapturing ? 'Solicitando...' : player.isPendingScreenshot ? 'Pendiente...' : 'Capturar'}
             </div>
           </button>
           
