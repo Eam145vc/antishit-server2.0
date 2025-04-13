@@ -40,23 +40,47 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   // Estado para lightbox de imagen
   const [selectedScreenshot, setSelectedScreenshot] = useState(null);
 
-  // Función para determinar el origen de la captura de pantalla
+  // Improved function to determine the origin of a screenshot with better detection
   const forceCorrectSource = (screenshot) => {
-    // Verificaciones múltiples para determinar el origen
+    // If the screenshot already has a reliable source field, trust it
+    if (screenshot.source === 'judge' || screenshot.source === 'user') {
+      return screenshot.source;
+    }
+    
+    // If the type is explicitly set
+    if (screenshot.type === 'judge-requested') {
+      return 'judge';
+    }
+    
+    // Prioritized checks for judge-requested screenshots
+    if (
+      // Check for request metadata
+      screenshot.requestInfo?.FORCE_JUDGE_TYPE === true ||
+      // Check if there's a requestedBy field (judges request)
+      screenshot.requestedBy || 
+      screenshot.judgeId ||
+      // Check request flags
+      screenshot.isJudgeRequested === true ||
+      screenshot.fromJudge === true
+    ) {
+      return 'judge';
+    }
+    
+    // Secondary indicators (less reliable)
     const judgeIndicators = [
-      screenshot.requestedBy,
-      screenshot.judgeId,
-      screenshot.notes?.includes("judge"),
-      screenshot.notes?.includes("JUDGE"),
-      screenshot.notes?.includes("dashboard"),
-      screenshot.requestInfo?.FORCE_JUDGE_TYPE,
-      screenshot.type === "judge-requested",
-      screenshot.source === "judge",
-      screenshot.isJudgeRequested,
-      screenshot.fromJudge
+      // Check for judge references in notes
+      screenshot.notes?.toLowerCase()?.includes("judge"),
+      screenshot.notes?.toLowerCase()?.includes("dashboard"),
+      // Other possible flags
+      screenshot.requestSource === 'judge'
     ];
-
-    return judgeIndicators.some(indicator => indicator) ? "judge" : "user";
+    
+    if (judgeIndicators.some(indicator => indicator === true)) {
+      return 'judge';
+    }
+    
+    // Default to user if no judge indicators are found
+    return 'user';
   };
 
   // Generar miniatura ficticia para capturas sin imagen
@@ -201,14 +225,24 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       
       // Solicitar captura
       if (connected) {
-        const result = requestScreenshot(activisionId, currentChannelId);
+        // Using socket with source param
+        const result = requestScreenshot(activisionId, currentChannelId, {
+          source: 'judge',
+          isJudgeRequest: true,
+          FORCE_JUDGE_TYPE: true
+        });
         
         if (result) {
           toast.success('Captura solicitada', { id: 'screenshot-request-toast' });
         } else {
           // Solicitud de respaldo por HTTP
           await axios.post(`${apiUrl}/screenshots/request`, 
-            { activisionId, channelId: currentChannelId },
+            { 
+              activisionId, 
+              channelId: currentChannelId,
+              source: 'judge',
+              isJudgeRequest: true
+            },
             { headers: { 'Authorization': `Bearer ${token}` } }
           );
           toast.success('Captura solicitada por HTTP', { id: 'screenshot-request-toast' });
@@ -216,7 +250,12 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       } else {
         // Solo HTTP si no hay conexión de socket
         await axios.post(`${apiUrl}/screenshots/request`, 
-          { activisionId, channelId: currentChannelId },
+          { 
+            activisionId, 
+            channelId: currentChannelId,
+            source: 'judge',
+            isJudgeRequest: true
+          },
           { headers: { 'Authorization': `Bearer ${token}` } }
         );
         toast.success('Captura solicitada', { id: 'screenshot-request-toast' });
@@ -342,7 +381,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     }
     
     fetchScreenshots();
-  }, [propsScreenshots, playerId, id]);
+  }, [propsScreenshots, playerId, id, applyFilters]);
 
   // Aplicar filtros cuando cambien los criterios
   useEffect(() => {
@@ -435,10 +474,6 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     setDateFilter({ startDate: '', endDate: '' });
     setSourceFilter('all');
   };
-
-  // Agrupar capturas por fuente
-  const userScreenshots = filteredScreenshots.filter(ss => ss.source === 'user');
-  const judgeScreenshots = filteredScreenshots.filter(ss => ss.source === 'judge');
 
   return (
     <div className="space-y-6">
