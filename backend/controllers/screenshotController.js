@@ -1,6 +1,7 @@
 // controllers/screenshotController.js
 const Screenshot = require('../models/Screenshot');
 const Player = require('../models/Player');
+const User = require('../models/User');
 const { emitAlert } = require('../utils/socket');
 
 // Global cache for pending screenshot requests
@@ -13,7 +14,7 @@ if (!global.screenshotRequests) {
 // @access  Public (from anti-cheat client)
 const saveScreenshot = async (req, res) => {
   try {
-    const { activisionId, channelId, screenshot, timestamp } = req.body;
+    const { activisionId, channelId, screenshot, timestamp, source } = req.body;
     
     // Verify required fields
     if (!activisionId || !channelId || !screenshot) {
@@ -22,6 +23,7 @@ const saveScreenshot = async (req, res) => {
     
     // Log for debugging
     console.log(`[SCREENSHOT] Receiving screenshot for ${activisionId} in channel ${channelId}`);
+    console.log(`[SCREENSHOT] Source: ${source || 'user'}`);
     
     // Find or create player
     let player = await Player.findOne({ activisionId });
@@ -49,13 +51,44 @@ const saveScreenshot = async (req, res) => {
       imageData = `data:image/png;base64,${imageData}`;
     }
     
+    // Check for pending request
+    const key = `${activisionId}-${channelId}`;
+    const pendingRequest = global.screenshotRequests?.[key];
+    
+    // Determine user request origin
+    let requestedBy = null;
+    
+    if (pendingRequest?.requestedBy) {
+      try {
+        // Find the user who requested the screenshot
+        const user = await User.findOne({ name: pendingRequest.requestedBy });
+        if (user) {
+          requestedBy = user._id;
+        }
+      } catch (error) {
+        console.warn('Could not find user for screenshot request:', error);
+      }
+    }
+    
     // Save screenshot
     const newScreenshot = await Screenshot.create({
       player: player._id,
       activisionId,
       channelId,
       imageData: imageData,
-      capturedAt: timestamp || new Date()
+      capturedAt: timestamp || new Date(),
+      // Record the source of the screenshot
+      source: source || (pendingRequest?.source || 'user'),
+      // If there was a pending request, record who requested it
+      requestedBy: requestedBy,
+      // For better identification, store a type field
+      type: pendingRequest || source === 'judge' ? 'judge-requested' : 'user-submitted',
+      // Store any other request details that might help identify the source
+      requestInfo: pendingRequest ? {
+        requestTime: pendingRequest.timestamp,
+        requestedBy: pendingRequest.requestedBy,
+        FORCE_JUDGE_TYPE: pendingRequest.FORCE_JUDGE_TYPE || false
+      } : null
     });
     
     // Emit event for new screenshot
@@ -63,7 +96,9 @@ const saveScreenshot = async (req, res) => {
       id: newScreenshot._id,
       activisionId,
       channelId,
-      timestamp: newScreenshot.capturedAt
+      timestamp: newScreenshot.capturedAt,
+      source: newScreenshot.source, // Include source in the event
+      type: newScreenshot.type // Include type in the event
     });
     
     // Emit alert
@@ -74,13 +109,17 @@ const saveScreenshot = async (req, res) => {
       channelId,
       message: `New screenshot from ${activisionId}`,
       severity: 'info',
-      timestamp: newScreenshot.capturedAt
+      timestamp: newScreenshot.capturedAt,
+      meta: {
+        screenshotId: newScreenshot._id,
+        source: newScreenshot.source, // Include source metadata
+        type: newScreenshot.type
+      }
     });
     
     console.log(`[SCREENSHOT] Successfully saved screenshot with ID: ${newScreenshot._id}`);
     
     // Clear any pending request for this player
-    const key = `${activisionId}-${channelId}`;
     if (global.screenshotRequests[key]) {
       console.log(`[SCREENSHOT] Clearing pending request for ${activisionId} in channel ${channelId}`);
       delete global.screenshotRequests[key];
@@ -88,7 +127,9 @@ const saveScreenshot = async (req, res) => {
     
     res.status(201).json({
       success: true,
-      id: newScreenshot._id
+      id: newScreenshot._id,
+      source: newScreenshot.source, // Return source in the response
+      type: newScreenshot.type
     });
   } catch (error) {
     console.error('Error saving screenshot:', error);
@@ -128,7 +169,8 @@ const checkScreenshotRequests = async (req, res) => {
         hasRequest: true,
         requestDetails: {
           requestedBy: requestDetails.requestedBy,
-          timestamp: requestDetails.timestamp
+          timestamp: requestDetails.timestamp,
+          source: requestDetails.source || 'judge' // Include source in response
         }
       });
     } else {
@@ -169,7 +211,7 @@ setInterval(cleanExpiredRequests, 60000); // Clean every minute
 // @access  Private
 const requestScreenshot = async (req, res) => {
   try {
-    const { activisionId, channelId } = req.body;
+    const { activisionId, channelId, source, isJudgeRequest } = req.body;
     
     // Verify required fields
     if (!activisionId || !channelId) {
@@ -203,16 +245,22 @@ const requestScreenshot = async (req, res) => {
     global.screenshotRequests[key] = {
       timestamp: new Date(),
       requestedBy: req.user?.name || 'Unknown',
-      expireAt: Date.now() + 120000 // Expires in 2 minutes
+      expireAt: Date.now() + 120000, // Expires in 2 minutes
+      source: source || 'judge',  // Default to 'judge' for requests through this endpoint
+      isJudgeRequest: isJudgeRequest !== false, // Default to true unless explicitly set to false
+      FORCE_JUDGE_TYPE: true // Force categorization as judge-requested
     };
     
     console.log(`[SCREENSHOT] New request stored for ${activisionId} in channel ${channelId} by ${req.user?.name || 'Unknown'}`);
+    console.log(`[SCREENSHOT] Request source: ${source || 'judge'}`);
     
     // Emit screenshot request through socket.io
     global.io?.to(`channel:${channelId}`).emit('take-screenshot', {
       activisionId,
       requestedBy: req.user?.name || 'Unknown',
-      timestamp: new Date()
+      timestamp: new Date(),
+      source: source || 'judge',
+      isJudgeRequest: isJudgeRequest !== false
     });
     
     // Emit alert for screenshot request
@@ -223,12 +271,17 @@ const requestScreenshot = async (req, res) => {
       channelId,
       message: `Screenshot requested for ${activisionId}`,
       severity: 'info',
-      timestamp: new Date()
+      timestamp: new Date(),
+      meta: {
+        source: source || 'judge',
+        isJudgeRequest: isJudgeRequest !== false
+      }
     });
     
     res.json({
       success: true,
-      message: 'Screenshot request sent'
+      message: 'Screenshot request sent',
+      source: source || 'judge'
     });
   } catch (error) {
     console.error('Error requesting screenshot:', error);
