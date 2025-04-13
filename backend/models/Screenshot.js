@@ -31,9 +31,26 @@ const screenshotSchema = mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  // Adding explicit source field to distinguish between judge requests and user submissions
+  source: {
+    type: String,
+    enum: ['user', 'judge'],
+    default: 'user'
+  },
+  // Adding explicit type field for more detailed categorization
+  type: {
+    type: String,
+    enum: ['user-submitted', 'judge-requested', 'scheduled'],
+    default: 'user-submitted'
+  },
   requestedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
+  },
+  // Store any additional request metadata
+  requestInfo: {
+    type: Object,
+    default: null
   },
   notes: String,
   
