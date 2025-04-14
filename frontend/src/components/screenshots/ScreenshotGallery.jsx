@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
@@ -12,7 +12,8 @@ import {
   UserIcon,
   ShieldCheckIcon,
   MagnifyingGlassIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { useSocket } from '../../context/SocketContext';
@@ -36,7 +37,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     endDate: ''
   });
   const [sourceFilter, setSourceFilter] = useState('all'); // 'all', 'user', 'judge'
-  
+
   // Estado para lightbox de imagen
   const [selectedScreenshot, setSelectedScreenshot] = useState(null);
 
@@ -83,13 +84,109 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     return 'user';
   };
 
-  // Generar miniatura ficticia para capturas sin imagen
+  // Generar miniatura ficticia para capturas sin imagen (mejorado)
   const generateDummyThumbnail = (screenshot) => {
-    const id = screenshot._id || '';
-    const hash = id.split('').reduce((acc, char) => char.charCodeAt(0) + acc, 0);
+    // Asegurarnos de que cada hash sea único y determinista
+    const getHashCode = (str) => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convertir a 32 bits
+      }
+      return Math.abs(hash);
+    };
+
+    const id = screenshot._id || screenshot.activisionId || 'Unknown';
+    const hash = getHashCode(id);
     const hue = hash % 360;
-    
-    return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150' viewBox='0 0 200 150'%3E%3Crect width='200' height='150' fill='hsl(${hue}, 70%25, 80%25)' /%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='18' text-anchor='middle' fill='%23333' dominant-baseline='middle'%3E${screenshot.activisionId || 'Screenshot'}%3C/text%3E%3C/svg%3E`;
+    const saturation = 70 + (hash % 30); // Variar saturación
+    const lightness = 70 + (hash % 20); // Variar luminosidad
+
+    // SVG más detallado con texto y gradiente
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+      <svg xmlns='http://www.w3.org/2000/svg' width='300' height='200' viewBox='0 0 300 200'>
+        <defs>
+          <linearGradient id='grad' x1='0%' y1='0%' x2='100%' y2='100%'>
+            <stop offset='0%' style='stop-color:hsl(${hue}, ${saturation}%, ${lightness}%);stop-opacity:0.8' />
+            <stop offset='100%' style='stop-color:hsl(${(hue + 30) % 360}, ${saturation}%, ${lightness - 10}%);stop-opacity:1' />
+          </linearGradient>
+        </defs>
+        <rect width='300' height='200' fill='url(#grad)' />
+        <text x='50%' y='50%' font-family='Arial' font-size='24' text-anchor='middle' fill='rgba(255,255,255,0.8)' dominant-baseline='middle'>
+          ${screenshot.activisionId || 'Screenshot'}
+        </text>
+        <text x='50%' y='70%' font-family='Arial' font-size='14' text-anchor='middle' fill='rgba(255,255,255,0.6)'>
+          Canal ${screenshot.channelId || 'N/A'}
+        </text>
+      </svg>
+    `)}`;
+  };
+
+  // Componente Lightbox para visualización de capturas (actualizado)
+  const ScreenshotLightbox = ({ screenshot, onClose }) => {
+    const lightboxRef = useRef(null);
+
+    const handleOverlayClick = (e) => {
+      // Solo cerrar si se hace clic fuera de la imagen
+      if (e.target === lightboxRef.current) {
+        onClose();
+      }
+    };
+
+    useEffect(() => {
+      const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+          onClose();
+        }
+      };
+
+      document.addEventListener('keydown', handleEscape);
+      return () => {
+        document.removeEventListener('keydown', handleEscape);
+      };
+    }, [onClose]);
+
+    return (
+      <div 
+        ref={lightboxRef}
+        className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center p-4 overflow-auto"
+        onClick={handleOverlayClick}
+      >
+        <div 
+          className="relative max-w-[90vw] max-h-[90vh] bg-white rounded-lg shadow-2xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Botón de cierre */}
+          <button 
+            onClick={onClose}
+            className="absolute top-4 right-4 z-10 text-white bg-black bg-opacity-50 hover:bg-opacity-75 rounded-full p-2"
+          >
+            <XMarkIcon className="h-6 w-6" />
+          </button>
+
+          {/* Imagen */}
+          <div className="flex justify-center items-center h-full">
+            <img 
+              src={screenshot.imageData || generateDummyThumbnail(screenshot)} 
+              alt={`Captura de ${screenshot.activisionId}`}
+              className="max-w-full max-h-[80vh] object-contain"
+            />
+          </div>
+
+          {/* Información adicional */}
+          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-4 text-center">
+            <p className="text-sm">
+              {screenshot.activisionId} - Canal {screenshot.channelId}
+            </p>
+            <p className="text-xs">
+              {new Date(screenshot.capturedAt).toLocaleString()} - 
+              {screenshot.source === 'judge' ? ' Solicitado por juez' : ' Enviado por cliente'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Función para ver detalles de captura de pantalla
@@ -115,7 +212,11 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       const imageResponse = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
       
       if (!imageResponse.data || !imageResponse.data.imageData) {
-        toast.error('No se pudo cargar la imagen');
+        // Si no hay datos de imagen, usar miniatura generada
+        setSelectedScreenshot({
+          ...screenshot,
+          imageData: generateDummyThumbnail(screenshot)
+        });
         return;
       }
 
@@ -131,72 +232,6 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       console.error('Error al cargar captura:', error);
       toast.error('Error al cargar captura de pantalla');
     }
-  };
-
-  // Componente Lightbox para visualización de capturas
-  const ScreenshotLightbox = ({ screenshot, onClose }) => {
-    const [zoom, setZoom] = useState(1);
-    const [position, setPosition] = useState({ x: 0, y: 0 });
-
-    const zoomIn = () => setZoom(prev => Math.min(prev * 1.2, 3));
-    const zoomOut = () => setZoom(prev => Math.max(prev / 1.2, 0.5));
-    const resetZoom = () => {
-      setZoom(1);
-      setPosition({ x: 0, y: 0 });
-    };
-
-    return (
-      <div 
-        className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center"
-        onClick={onClose}
-      >
-        <div 
-          className="relative max-w-[90vw] max-h-[90vh] overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Controles de zoom */}
-          <div className="absolute top-4 left-4 z-10 flex space-x-2 bg-black bg-opacity-50 rounded-lg p-2">
-            <button onClick={zoomOut} className="text-white">-</button>
-            <span className="text-white">{Math.round(zoom * 100)}%</span>
-            <button onClick={zoomIn} className="text-white">+</button>
-            <button onClick={resetZoom} className="text-white">Reset</button>
-          </div>
-
-          {/* Botón de cierre */}
-          <button 
-            onClick={onClose}
-            className="absolute top-4 right-4 z-10 text-white bg-black bg-opacity-50 rounded-full p-2"
-          >
-            Cerrar
-          </button>
-
-          {/* Imagen con zoom */}
-          <div 
-            className="relative"
-            style={{
-              transform: `scale(${zoom})`,
-              transformOrigin: 'center center',
-              transition: 'transform 0.2s ease'
-            }}
-          >
-            <img 
-              src={screenshot.imageData} 
-              alt={`Captura de ${screenshot.activisionId}`}
-              className="max-w-full max-h-[80vh] object-contain"
-            />
-          </div>
-
-          {/* Información adicional */}
-          <div className="absolute bottom-4 left-0 right-0 text-center text-white bg-black bg-opacity-50 p-2">
-            <p>{screenshot.activisionId} - Canal {screenshot.channelId}</p>
-            <p>
-              {new Date(screenshot.capturedAt).toLocaleString()} - 
-              {screenshot.source === 'judge' ? ' Solicitado por juez' : ' Enviado por cliente'}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
   };
 
   // Solicitar captura de pantalla manualmente
@@ -721,7 +756,10 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       {/* Lightbox para visualización de capturas */}
       {selectedScreenshot && (
         <ScreenshotLightbox 
-          screenshot={selectedScreenshot} 
+          screenshot={{
+            ...selectedScreenshot,
+            imageData: selectedScreenshot.imageData || generateDummyThumbnail(selectedScreenshot)
+          }} 
           onClose={() => setSelectedScreenshot(null)} 
         />
       )}
