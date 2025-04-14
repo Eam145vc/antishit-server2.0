@@ -24,15 +24,16 @@ const PlayerMonitorCard = ({
     try {
       setIsCapturing(true);
       
-      // Pass explicit source='judge' when requesting a screenshot from the judge UI
+      // MEJORA: Incluir opciones explícitas para garantizar que se marque como solicitud de juez
       const result = await onRequestScreenshot(player.activisionId, { 
         source: 'judge', 
-        isJudgeRequest: true 
+        isJudgeRequest: true,
+        FORCE_JUDGE_TYPE: true
       });
       
       if (result) {
         // Success!
-        console.log('Judge screenshot request sent successfully');
+        console.log('Judge screenshot request sent successfully with explicit source=judge');
       }
       
       setTimeout(() => setIsCapturing(false), 3000); // Reset after 3 seconds
