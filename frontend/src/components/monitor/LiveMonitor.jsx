@@ -141,6 +141,13 @@ const LiveMonitor = () => {
     const handleNewScreenshot = (data) => {
       console.log('Nueva captura recibida:', data);
       
+      // MEJORA: Log adicional para verificar los metadatos de la captura
+      console.log('Metadatos de captura:', {
+        source: data.source,
+        type: data.type,
+        activisionId: data.activisionId
+      });
+      
       // Actualizar el estado para quitar la entrada pendiente
       setPendingScreenshots(prev => {
         const updated = {...prev};
@@ -184,21 +191,25 @@ const LiveMonitor = () => {
     }
     
     try {
+      console.log(`Solicitando captura para ${activisionId} con opciones:`, options);
+      
+      // MEJORA: Asegurar que siempre se incluyan los metadatos correctos
+      // Valores por defecto explícitos para las opciones
+      const finalOptions = {
+        source: 'judge',                 // Siempre 'judge' para solicitudes desde el dashboard
+        isJudgeRequest: true,            // Siempre true para solicitudes desde el dashboard
+        FORCE_JUDGE_TYPE: true,          // Metadato adicional para forzar la categorización
+        ...options                       // Permitir anular con opciones personalizadas si se proporcionan
+      };
+      
       // Marcar esta solicitud como pendiente
       setPendingScreenshots(prev => ({
         ...prev,
         [activisionId]: new Date()
       }));
       
-      // Extract options with defaults
-      const { source = 'judge', isJudgeRequest = true } = options;
-      
       // La solicitud se maneja a través del hook useSocket
-      const success = requestScreenshot(activisionId, selectedChannel, {
-        source,
-        isJudgeRequest,
-        FORCE_JUDGE_TYPE: true
-      });
+      const success = requestScreenshot(activisionId, selectedChannel, finalOptions);
       
       if (!success) {
         // Si falló el socket, intentar con HTTP
@@ -213,17 +224,15 @@ const LiveMonitor = () => {
           'Authorization': `Bearer ${token}`
         };
         
-        console.log('Intentando solicitud HTTP como respaldo...');
+        console.log('Intentando solicitud HTTP como respaldo con opciones:', finalOptions);
         
-        // Include source and isJudgeRequest in HTTP request
+        // Incluir metadatos en la solicitud HTTP
         const response = await axios.post(
           `${apiUrl}/screenshots/request`, 
           { 
             activisionId, 
             channelId: selectedChannel,
-            source,
-            isJudgeRequest,
-            FORCE_JUDGE_TYPE: true
+            ...finalOptions  // Incluir todas las opciones en la solicitud HTTP
           },
           { headers }
         );
