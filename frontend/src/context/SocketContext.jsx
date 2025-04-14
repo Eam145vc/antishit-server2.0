@@ -42,7 +42,27 @@ export const SocketProvider = ({ children }) => {
     socketIo.on('connect', () => {
       setConnected(true);
       console.log('Socket connected successfully');
-      toast.success('Connected in real-time');
+      toast.error('No real-time connection');
+    return false;
+  };
+  
+  return (
+    <SocketContext.Provider
+      value={{
+        socket,
+        connected,
+        joinChannel,
+        leaveChannel,
+        requestScreenshot,
+        changePlayerChannel
+      }}
+    >
+      {children}
+    </SocketContext.Provider>
+  );
+};
+
+export const useSocket = () => useContext(SocketContext);.success('Connected in real-time');
     });
     
     socketIo.on('disconnect', (reason) => {
@@ -206,22 +226,4 @@ export const SocketProvider = ({ children }) => {
       toast.success(`Moving ${activisionId} to channel ${toChannel}`);
       return true;
     }
-    toast.error('No real-time connection');
-    return false;
-  };
-  
-  return (
-    <SocketContext.Provider
-      value={{
-        socket,
-        connected,
-        joinChannel,
-        leaveChannel,
-        requestScreenshot,
-        changePlayerChannel
-      }}
-    >
-      {children}
-    </SocketContext.Provider>
-  );
-};
+    toast
