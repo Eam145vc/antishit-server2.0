@@ -308,188 +308,71 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     }
   };
 
- // Función para actualizar datos de capturas - versión mejorada
-const refreshData = useCallback(async () => {
-  try {
-    setIsLoading(true);
-    setIsRefreshing(true);
-    toast.loading('Actualizando capturas...', { id: 'refresh-toast' });
-    
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
-    const token = localStorage.getItem('token');
-    
-    if (!token) {
-      toast.error('Sesión expirada');
-      navigate('/login');
-      return;
-    }
-    
-    const headers = { 'Authorization': `Bearer ${token}` };
-    
-    let url = `${apiUrl}/screenshots`;
-    if (playerId || id) {
-      url = `${apiUrl}/screenshots/player/${playerId || id}`;
-    }
-    
-    // Limpiar cualquier error previo
-    setError(null);
-    
-    const response = await axios.get(url, { headers });
-    
-    if (!Array.isArray(response.data)) {
-      throw new Error('Formato de respuesta inválido');
-    }
-    
-    // Procesar capturas con imágenes
-    const processedScreenshots = await Promise.all(response.data.map(async (screenshot) => {
-      // Determinar la fuente correcta
-      const source = forceCorrectSource(screenshot);
+  // Función para actualizar datos de capturas
+  const refreshData = useCallback(async () => {
+    try {
+      setIsRefreshing(true);
+      toast.loading('Actualizando capturas...', { id: 'refresh-toast' });
       
-      try {
-        // Intentar obtener la imagen
-        const imageResponse = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
-        
-        let thumbnailUrl;
-        if (imageResponse.data && imageResponse.data.imageData) {
-          thumbnailUrl = imageResponse.data.imageData.startsWith('data:image')
-            ? imageResponse.data.imageData
-            : `data:image/png;base64,${imageResponse.data.imageData}`;
-        } else {
-          thumbnailUrl = generateDummyThumbnail(screenshot);
-        }
-        
-        return {
-          ...screenshot,
-          source,
-          thumbnailUrl,
-          imageData: thumbnailUrl
-        };
-      } catch (imageError) {
-        console.warn(`No se pudo cargar imagen para captura ${screenshot._id}:`, imageError);
-        return {
-          ...screenshot,
-          source,
-          thumbnailUrl: generateDummyThumbnail(screenshot)
-        };
-      }
-    }));
-    
-    // Actualizar estado directamente
-    setScreenshots(processedScreenshots);
-    applyFilters(processedScreenshots);
-    
-    toast.success(`${processedScreenshots.length} capturas actualizadas`, { id: 'refresh-toast' });
-  } catch (error) {
-    console.error('Error al actualizar capturas:', error);
-    
-    // Manejar diferentes tipos de errores
-    if (error.response) {
-      // Error de respuesta del servidor
-      setError(`Error del servidor: ${error.response.data.message || 'No se pudieron cargar las capturas'}`);
-    } else if (error.request) {
-      // Error de solicitud sin respuesta
-      setError('No se pudo conectar con el servidor');
-    } else {
-      // Error de configuración de la solicitud
-      setError('Error al intentar actualizar capturas');
-    }
-    
-    toast.error('No se pudieron actualizar las capturas', { id: 'refresh-toast' });
-  } finally {
-    setIsLoading(false);
-    setIsRefreshing(false);
-  }
-}, [playerId, id, navigate, applyFilters, forceCorrectSource, generateDummyThumbnail]);
-
-// Asegurarse de que los métodos dependientes estén en el useCallback correcto
-const fetchScreenshots = useCallback(async () => {
-  try {
-    setIsLoading(true);
-    
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
-    const token = localStorage.getItem('token');
-    
-    if (!token) {
-      toast.error('Sesión expirada, inicie sesión de nuevo');
-      navigate('/login');
-      return;
-    }
-    
-    const headers = {
-      'Authorization': `Bearer ${token}`
-    };
-    
-    let url = `${apiUrl}/screenshots`;
-    if (playerId || id) {
-      url = `${apiUrl}/screenshots/player/${playerId || id}`;
-    }
-    
-    const response = await axios.get(url, { headers });
-    
-    if (!Array.isArray(response.data)) {
-      throw new Error('Formato de respuesta inválido');
-    }
-    
-    const processedScreenshots = await Promise.all(response.data.map(async (screenshot) => {
-      const source = forceCorrectSource(screenshot);
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
+      const token = localStorage.getItem('token');
       
-      try {
-        const imageResponse = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
-        
-        let thumbnailUrl;
-        if (imageResponse.data && imageResponse.data.imageData) {
-          thumbnailUrl = imageResponse.data.imageData.startsWith('data:image') 
-            ? imageResponse.data.imageData 
-            : `data:image/png;base64,${imageResponse.data.imageData}`;
-        } else {
-          thumbnailUrl = generateDummyThumbnail(screenshot);
-        }
-        
-        return {
-          ...screenshot,
-          source,
-          thumbnailUrl,
-          imageData: thumbnailUrl
-        };
-      } catch (error) {
-        console.warn(`No se pudo cargar imagen para captura ${screenshot._id}:`, error);
-        return {
-          ...screenshot,
-          source,
-          thumbnailUrl: generateDummyThumbnail(screenshot)
-        };
+      if (!token) {
+        toast.error('Sesión expirada');
+        navigate('/login');
+        return;
       }
-    }));
-    
-    setScreenshots(processedScreenshots);
-    applyFilters(processedScreenshots);
-    setError(null);
-  } catch (err) {
-    console.error('Error cargando capturas:', err);
-    setError('Error al cargar capturas');
-    setScreenshots([]);
-    setFilteredScreenshots([]);
-  } finally {
-    setIsLoading(false);
-  }
-}, [playerId, id, navigate, applyFilters, forceCorrectSource, generateDummyThumbnail]);
-
-// Modificar useEffect para usar fetchScreenshots como callback
-useEffect(() => {
-  if (propsScreenshots) {
-    const processedScreenshots = propsScreenshots.map(screenshot => ({
-      ...screenshot,
-      source: forceCorrectSource(screenshot),
-      thumbnailUrl: screenshot.thumbnailUrl || generateDummyThumbnail(screenshot)
-    }));
-    
-    setScreenshots(processedScreenshots);
-    applyFilters(processedScreenshots);
-    return;
-  }
-  
-  fetchScreenshots();
-}, [propsScreenshots, playerId, id, applyFilters, fetchScreenshots]);
+      
+      const headers = { 'Authorization': `Bearer ${token}` };
+      
+      let url = `${apiUrl}/screenshots`;
+      if (playerId || id) {
+        url = `${apiUrl}/screenshots/player/${playerId || id}`;
+      }
+      
+      const response = await axios.get(url, { headers });
+      
+      if (response.data && Array.isArray(response.data)) {
+        const processedScreenshots = await Promise.all(response.data.map(async (screenshot) => {
+          // Determinar la fuente correcta
+          const source = forceCorrectSource(screenshot);
+          
+          let thumbnailUrl = null;
+          try {
+            const imageResponse = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
+            
+            if (imageResponse.data && imageResponse.data.imageData) {
+              thumbnailUrl = imageResponse.data.imageData.startsWith('data:image')
+                ? imageResponse.data.imageData
+                : `data:image/png;base64,${imageResponse.data.imageData}`;
+            }
+          } catch (error) {
+            console.warn(`No se pudo cargar imagen para captura ${screenshot._id}:`, error);
+            thumbnailUrl = generateDummyThumbnail(screenshot);
+          }
+          
+          return {
+            ...screenshot,
+            source,
+            thumbnailUrl
+          };
+        }));
+        
+        setScreenshots(processedScreenshots);
+        applyFilters(processedScreenshots);
+        
+        toast.success(`${processedScreenshots.length} capturas cargadas`, { id: 'refresh-toast' });
+      } else {
+        toast.error('Formato de respuesta inválido', { id: 'refresh-toast' });
+      }
+      
+    } catch (error) {
+      console.error('Error actualizando datos:', error);
+      toast.error('Error al actualizar capturas', { id: 'refresh-toast' });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [playerId, id, navigate]);
 
   // Aplicar filtros
   const applyFilters = useCallback((screenshotsToFilter = screenshots) => {
