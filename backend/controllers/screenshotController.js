@@ -70,23 +70,28 @@ const saveScreenshot = async (req, res) => {
       }
     }
     
-    // Save screenshot
+    // Determine the actual source - this is crucial for the fix
+    // Priority: 1. Pending request source, 2. Provided source, 3. Default to 'user'
+    const actualSource = pendingRequest?.source || source || 'user';
+    
+    // Save screenshot with the correct source attribution
     const newScreenshot = await Screenshot.create({
       player: player._id,
       activisionId,
       channelId,
       imageData: imageData,
       capturedAt: timestamp || new Date(),
-      // Record the source of the screenshot
-      source: source || (pendingRequest?.source || 'user'),
+      // Use the determined source
+      source: actualSource,
       // If there was a pending request, record who requested it
       requestedBy: requestedBy,
-      // For better identification, store a type field
-      type: pendingRequest || source === 'judge' ? 'judge-requested' : 'user-submitted',
+      // For better identification, store a type field - explicitly set the type based on source
+      type: actualSource === 'judge' ? 'judge-requested' : 'user-submitted',
       // Store any other request details that might help identify the source
       requestInfo: pendingRequest ? {
         requestTime: pendingRequest.timestamp,
         requestedBy: pendingRequest.requestedBy,
+        source: pendingRequest.source,
         FORCE_JUDGE_TYPE: pendingRequest.FORCE_JUDGE_TYPE || false
       } : null
     });
@@ -117,7 +122,7 @@ const saveScreenshot = async (req, res) => {
       }
     });
     
-    console.log(`[SCREENSHOT] Successfully saved screenshot with ID: ${newScreenshot._id}`);
+    console.log(`[SCREENSHOT] Successfully saved screenshot with ID: ${newScreenshot._id}, source: ${newScreenshot.source}, type: ${newScreenshot.type}`);
     
     // Clear any pending request for this player
     if (global.screenshotRequests[key]) {
