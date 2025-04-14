@@ -31,13 +31,13 @@ const screenshotSchema = mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  // Adding explicit source field to distinguish between judge requests and user submissions
+  // Campo específico de source mejorado para distinguir el origen
   source: {
     type: String,
     enum: ['user', 'judge'],
     default: 'user'
   },
-  // Adding explicit type field for more detailed categorization
+  // Tipo explícito para mejor categorización
   type: {
     type: String,
     enum: ['user-submitted', 'judge-requested', 'scheduled'],
@@ -47,7 +47,7 @@ const screenshotSchema = mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
-  // Store any additional request metadata
+  // Almacenar metadatos adicionales de la solicitud
   requestInfo: {
     type: Object,
     default: null
@@ -91,6 +91,13 @@ screenshotSchema.pre('save', function(next) {
     this.fileSize = base64Data.length * 0.75; // Aproximado
   } catch (error) {
     console.warn('No se pudo calcular el tamaño de la imagen');
+  }
+  
+  // Asegurar que source y type sean consistentes
+  if (this.source === 'judge' && this.type !== 'judge-requested') {
+    this.type = 'judge-requested';
+  } else if (this.source === 'user' && this.type !== 'user-submitted') {
+    this.type = 'user-submitted';
   }
   
   next();
