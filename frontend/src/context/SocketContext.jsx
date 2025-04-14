@@ -105,7 +105,7 @@ export const SocketProvider = ({ children }) => {
     // Add a listener for new screenshots
     socketIo.on('new-screenshot', (data) => {
       console.log('New screenshot available:', data);
-      toast.success(`New screenshot from ${data.activisionId} available`);
+      toast.success(`New screenshot from ${data.activisionId} available (${data.source === 'judge' ? 'Judge requested' : 'User submitted'})`);
     });
     
     setSocket(socketIo);
@@ -140,7 +140,7 @@ export const SocketProvider = ({ children }) => {
     return false;
   };
   
-  // Function to request a screenshot - improved with more logging and source tracking
+  // Function to request a screenshot - improved with more logging and explicit source tracking
   const requestScreenshot = (activisionId, channelId, options = {}) => {
     if (!socket || !connected) {
       console.warn('Could not request screenshot - socket not connected', {
@@ -153,7 +153,11 @@ export const SocketProvider = ({ children }) => {
     }
     
     try {
-      console.log(`Requesting screenshot for ${activisionId} in channel ${channelId}`);
+      console.log(`Requesting screenshot for ${activisionId} in channel ${channelId}`, {
+        source: options.source || 'judge',
+        isJudgeRequest: options.isJudgeRequest !== false,
+        FORCE_JUDGE_TYPE: options.FORCE_JUDGE_TYPE !== false
+      });
       
       // Emit the event with the necessary information
       // Added source: 'judge' to clearly mark this screenshot request
@@ -175,7 +179,9 @@ export const SocketProvider = ({ children }) => {
         activisionId, 
         channelId,
         requestedBy: user?.name,
-        source: options.source || 'judge'
+        source: options.source || 'judge',
+        isJudgeRequest: options.isJudgeRequest !== false,
+        FORCE_JUDGE_TYPE: options.FORCE_JUDGE_TYPE !== false
       });
       
       return true;
