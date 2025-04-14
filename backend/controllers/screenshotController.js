@@ -9,6 +9,47 @@ if (!global.screenshotRequests) {
   global.screenshotRequests = {};
 }
 
+/**
+ * Determina si una captura es solicitada por un juez o enviada por un usuario
+ * Función mejorada para ser más robusta en la detección
+ */
+const determineScreenshotSource = (data, pendingRequest) => {
+  console.log('[SCREENSHOT] Determinando fuente de la captura:');
+  console.log(`[SCREENSHOT] - Fuente explícita en datos: "${data.source || 'no definida'}"`);
+  console.log(`[SCREENSHOT] - ¿Pendiente?: ${pendingRequest ? 'Sí' : 'No'}`);
+  
+  if (pendingRequest) {
+    console.log(`[SCREENSHOT] - Fuente de solicitud pendiente: "${pendingRequest.source || 'no definida'}"`);
+    console.log(`[SCREENSHOT] - ¿Es solicitud de juez?: ${pendingRequest.isJudgeRequest === true ? 'Sí' : 'No'}`);
+    console.log(`[SCREENSHOT] - ¿Forzar como juez?: ${pendingRequest.FORCE_JUDGE_TYPE === true ? 'Sí' : 'No'}`);
+  }
+  
+  // Primero, verificar si hay una solicitud pendiente de un juez
+  if (pendingRequest && 
+    (pendingRequest.source === 'judge' || 
+     pendingRequest.isJudgeRequest === true || 
+     pendingRequest.FORCE_JUDGE_TYPE === true)) {
+    console.log('[SCREENSHOT] Determinado como: "judge" (por solicitud pendiente)');
+    return 'judge';
+  }
+  
+  // Segundo, verificar si el cliente especificó explícitamente "judge"
+  if (data.source === 'judge') {
+    console.log('[SCREENSHOT] Determinado como: "judge" (por fuente explícita en datos)');
+    return 'judge';
+  }
+  
+  // Si tenemos una solicitud pendiente pero sin otra información, confiar en ella
+  if (pendingRequest && pendingRequest.source) {
+    console.log(`[SCREENSHOT] Determinado como: "${pendingRequest.source}" (por solicitud pendiente genérica)`);
+    return pendingRequest.source;
+  }
+  
+  // Por defecto, es una captura enviada por el usuario
+  console.log('[SCREENSHOT] Determinado como: "user" (por defecto)');
+  return 'user';
+};
+
 // @desc    Save new screenshot
 // @route   POST /api/screenshots
 // @access  Public (from anti-cheat client)
@@ -16,20 +57,20 @@ const saveScreenshot = async (req, res) => {
   try {
     const { activisionId, channelId, screenshot, timestamp, source } = req.body;
     
-    // Verify required fields
+    // Verificar campos obligatorios
     if (!activisionId || !channelId || !screenshot) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
     
-    // Log for debugging
+    // Log para depuración
     console.log(`[SCREENSHOT] Receiving screenshot for ${activisionId} in channel ${channelId}`);
-    console.log(`[SCREENSHOT] Source: ${source || 'user'}`);
+    console.log(`[SCREENSHOT] Source from client: ${source || 'not specified'}`);
     
-    // Find or create player
+    // Encontrar o crear jugador
     let player = await Player.findOne({ activisionId });
     
     if (!player) {
-      // If player doesn't exist, create them
+      // Si el jugador no existe, crearlo
       player = await Player.create({
         activisionId,
         currentChannelId: channelId,
@@ -37,30 +78,40 @@ const saveScreenshot = async (req, res) => {
         lastSeen: new Date()
       });
     } else {
-      // Update player fields
+      // Actualizar campos del jugador
       player.lastSeen = new Date();
       player.currentChannelId = channelId;
       await player.save();
     }
     
-    // Normalize and verify image data
+    // Normalizar y verificar datos de imagen
     let imageData = screenshot;
     
-    // If it doesn't have base64 prefix, add it
+    // Si no tiene prefijo base64, añadirlo
     if (!imageData.startsWith('data:image')) {
       imageData = `data:image/png;base64,${imageData}`;
     }
     
-    // Check for pending request
+    // Verificar si hay una solicitud pendiente
     const key = `${activisionId}-${channelId}`;
     const pendingRequest = global.screenshotRequests?.[key];
     
-    // Determine user request origin
-    let requestedBy = null;
+    console.log(`[SCREENSHOT] Checking pending request for ${key}: ${pendingRequest ? 'Found' : 'Not found'}`);
+    if (pendingRequest) {
+      console.log(`[SCREENSHOT] Pending request details: ${JSON.stringify(pendingRequest)}`);
+    }
     
+    // Determinar el origen de la captura con el método mejorado
+    const screenshotSource = determineScreenshotSource(req.body, pendingRequest);
+    
+    // Tipo de captura basado en la fuente
+    const screenshotType = screenshotSource === 'judge' ? 'judge-requested' : 'user-submitted';
+    
+    // Buscar el usuario que solicitó la captura (si existe)
+    let requestedBy = null;
     if (pendingRequest?.requestedBy) {
       try {
-        // Find the user who requested the screenshot
+        // Buscar el usuario por nombre
         const user = await User.findOne({ name: pendingRequest.requestedBy });
         if (user) {
           requestedBy = user._id;
@@ -70,43 +121,40 @@ const saveScreenshot = async (req, res) => {
       }
     }
     
-    // Determine the actual source - this is crucial for the fix
-    // Priority: 1. Pending request source, 2. Provided source, 3. Default to 'user'
-    const actualSource = pendingRequest?.source || source || 'user';
-    
-    // Save screenshot with the correct source attribution
+    // Crear la nueva captura con la fuente correcta
     const newScreenshot = await Screenshot.create({
       player: player._id,
       activisionId,
       channelId,
       imageData: imageData,
       capturedAt: timestamp || new Date(),
-      // Use the determined source
-      source: actualSource,
-      // If there was a pending request, record who requested it
-      requestedBy: requestedBy,
-      // For better identification, store a type field - explicitly set the type based on source
-      type: actualSource === 'judge' ? 'judge-requested' : 'user-submitted',
-      // Store any other request details that might help identify the source
+      source: screenshotSource, // Usar la fuente determinada
+      type: screenshotType,     // Tipo basado en la fuente
+      requestedBy: requestedBy, // Usuario que solicitó la captura (si existe)
       requestInfo: pendingRequest ? {
         requestTime: pendingRequest.timestamp,
         requestedBy: pendingRequest.requestedBy,
         source: pendingRequest.source,
-        FORCE_JUDGE_TYPE: pendingRequest.FORCE_JUDGE_TYPE || false
+        isJudgeRequest: pendingRequest.isJudgeRequest,
+        FORCE_JUDGE_TYPE: pendingRequest.FORCE_JUDGE_TYPE
       } : null
     });
     
-    // Emit event for new screenshot
+    console.log(`[SCREENSHOT] Screenshot saved with ID: ${newScreenshot._id}`);
+    console.log(`[SCREENSHOT] - source: ${newScreenshot.source}`);
+    console.log(`[SCREENSHOT] - type: ${newScreenshot.type}`);
+    
+    // Emitir evento de nueva captura
     global.io?.to(`channel:${channelId}`).emit('new-screenshot', {
       id: newScreenshot._id,
       activisionId,
       channelId,
       timestamp: newScreenshot.capturedAt,
-      source: newScreenshot.source, // Include source in the event
-      type: newScreenshot.type // Include type in the event
+      source: newScreenshot.source,
+      type: newScreenshot.type
     });
     
-    // Emit alert
+    // Emitir alerta
     emitAlert({
       type: 'screenshot-taken',
       playerId: player._id,
@@ -117,23 +165,21 @@ const saveScreenshot = async (req, res) => {
       timestamp: newScreenshot.capturedAt,
       meta: {
         screenshotId: newScreenshot._id,
-        source: newScreenshot.source, // Include source metadata
+        source: newScreenshot.source,
         type: newScreenshot.type
       }
     });
     
-    console.log(`[SCREENSHOT] Successfully saved screenshot with ID: ${newScreenshot._id}, source: ${newScreenshot.source}, type: ${newScreenshot.type}`);
-    
-    // Clear any pending request for this player
+    // Limpiar solicitud pendiente para este jugador
     if (global.screenshotRequests[key]) {
-      console.log(`[SCREENSHOT] Clearing pending request for ${activisionId} in channel ${channelId}`);
+      console.log(`[SCREENSHOT] Clearing pending request for ${key}`);
       delete global.screenshotRequests[key];
     }
     
     res.status(201).json({
       success: true,
       id: newScreenshot._id,
-      source: newScreenshot.source, // Return source in the response
+      source: newScreenshot.source,
       type: newScreenshot.type
     });
   } catch (error) {
@@ -155,27 +201,32 @@ const checkScreenshotRequests = async (req, res) => {
     
     console.log(`[SCREENSHOT] Client checking for requests: ${activisionId} in channel ${channelId}`);
     
-    // Check in global cache if there's a pending request for this player
+    // Verificar si hay una solicitud pendiente para este jugador
     const key = `${activisionId}-${channelId}`;
     const hasRequest = !!global.screenshotRequests[key];
     
-    // If there is a request, provide the request details but DON'T remove it yet
-    // It will be removed when the client successfully uploads a screenshot
+    // Si hay solicitud, proporcionar los detalles
     if (hasRequest) {
       console.log(`[SCREENSHOT] Pending request found for ${activisionId} in channel ${channelId}`);
       const requestDetails = global.screenshotRequests[key];
       
-      // Add a timestamp to the request if it doesn't have one
+      // Agregar timestamp de expiración si no existe
       if (!requestDetails.expireAt) {
-        requestDetails.expireAt = Date.now() + 60000; // Expires in 60 seconds
+        requestDetails.expireAt = Date.now() + 60000; // 60 segundos
       }
+      
+      // Incluir explícitamente la fuente de la solicitud
+      const source = requestDetails.source || 'judge';
+      console.log(`[SCREENSHOT] Request source: ${source}`);
       
       return res.json({ 
         hasRequest: true,
         requestDetails: {
           requestedBy: requestDetails.requestedBy,
           timestamp: requestDetails.timestamp,
-          source: requestDetails.source || 'judge' // Include source in response
+          source: source, // Incluir explícitamente la fuente
+          isJudgeRequest: requestDetails.isJudgeRequest !== false,
+          FORCE_JUDGE_TYPE: requestDetails.FORCE_JUDGE_TYPE !== false
         }
       });
     } else {
@@ -218,19 +269,19 @@ const requestScreenshot = async (req, res) => {
   try {
     const { activisionId, channelId, source, isJudgeRequest } = req.body;
     
-    // Verify required fields
+    // Verificar campos obligatorios
     if (!activisionId || !channelId) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
     
-    // Find player
+    // Buscar jugador
     const player = await Player.findOne({ activisionId });
     
     if (!player) {
       return res.status(404).json({ message: 'Player not found' });
     }
 
-    // Check if player is online
+    // Comprobar si el jugador está conectado
     const lastSeenDate = new Date(player.lastSeen);
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     const isReallyOnline = player.isOnline && lastSeenDate > fiveMinutesAgo;
@@ -241,34 +292,37 @@ const requestScreenshot = async (req, res) => {
       });
     }
     
-    // Store the request in memory for the client to pick up
+    // Almacenar la solicitud para que el cliente la recoja
     if (!global.screenshotRequests) {
       global.screenshotRequests = {};
     }
     
     const key = `${activisionId}-${channelId}`;
+    
+    // MEJORA: Asegurarse de que siempre se marque como solicitud de juez
+    // con todos los metadatos necesarios
     global.screenshotRequests[key] = {
       timestamp: new Date(),
-      requestedBy: req.user?.name || 'Unknown',
-      expireAt: Date.now() + 120000, // Expires in 2 minutes
-      source: source || 'judge',  // Default to 'judge' for requests through this endpoint
-      isJudgeRequest: isJudgeRequest !== false, // Default to true unless explicitly set to false
-      FORCE_JUDGE_TYPE: true // Force categorization as judge-requested
+      requestedBy: req.user?.name || 'Judge', // Nombre por defecto
+      expireAt: Date.now() + 120000, // 2 minutos
+      source: 'judge', // Forzar a 'judge' - esta es una solicitud de juez
+      isJudgeRequest: true, // Siempre true para este endpoint
+      FORCE_JUDGE_TYPE: true // Metadato adicional para forzar el tipo
     };
     
-    console.log(`[SCREENSHOT] New request stored for ${activisionId} in channel ${channelId} by ${req.user?.name || 'Unknown'}`);
-    console.log(`[SCREENSHOT] Request source: ${source || 'judge'}`);
+    console.log(`[SCREENSHOT] New request stored for ${activisionId} in channel ${channelId}`);
+    console.log(`[SCREENSHOT] Request metadata: ${JSON.stringify(global.screenshotRequests[key])}`);
     
-    // Emit screenshot request through socket.io
+    // Emitir solicitud a través de socket
     global.io?.to(`channel:${channelId}`).emit('take-screenshot', {
       activisionId,
-      requestedBy: req.user?.name || 'Unknown',
+      requestedBy: req.user?.name || 'Judge',
       timestamp: new Date(),
-      source: source || 'judge',
-      isJudgeRequest: isJudgeRequest !== false
+      source: 'judge',
+      isJudgeRequest: true
     });
     
-    // Emit alert for screenshot request
+    // Emitir alerta
     emitAlert({
       type: 'screenshot-request',
       playerId: player._id,
@@ -278,15 +332,15 @@ const requestScreenshot = async (req, res) => {
       severity: 'info',
       timestamp: new Date(),
       meta: {
-        source: source || 'judge',
-        isJudgeRequest: isJudgeRequest !== false
+        source: 'judge',
+        isJudgeRequest: true
       }
     });
     
     res.json({
       success: true,
       message: 'Screenshot request sent',
-      source: source || 'judge'
+      source: 'judge'
     });
   } catch (error) {
     console.error('Error requesting screenshot:', error);
@@ -301,7 +355,7 @@ const getScreenshots = async (req, res) => {
   try {
     const { limit = 20, activisionId, channelId } = req.query;
     
-    // Build filter based on parameters
+    // Crear filtro basado en parámetros
     const filter = {};
     
     if (activisionId) {
@@ -312,11 +366,11 @@ const getScreenshots = async (req, res) => {
       filter.channelId = parseInt(channelId);
     }
     
-    // Get screenshots with pagination
+    // Obtener capturas con paginación
     const screenshots = await Screenshot.find(filter)
       .sort({ capturedAt: -1 })
       .limit(parseInt(limit))
-      .select('-imageData') // Exclude large binary data
+      .select('-imageData') // Excluir datos binarios grandes
       .populate('player', 'activisionId');
     
     res.json(screenshots);
@@ -355,7 +409,7 @@ const getScreenshotImage = async (req, res) => {
       return res.status(404).json({ message: 'Screenshot not found' });
     }
     
-    // Ensure the image has the correct prefix
+    // Asegurar que la imagen tenga el prefijo correcto
     const imageData = screenshot.imageData.startsWith('data:image')
       ? screenshot.imageData
       : `data:image/png;base64,${screenshot.imageData}`;
@@ -395,18 +449,18 @@ const getPlayerScreenshots = async (req, res) => {
   try {
     const { limit = 20 } = req.query;
     
-    // Find player
+    // Buscar jugador
     const player = await Player.findById(req.params.id);
     
     if (!player) {
       return res.status(404).json({ message: 'Player not found' });
     }
     
-    // Get screenshots
+    // Obtener capturas
     const screenshots = await Screenshot.find({ player: player._id })
       .sort({ capturedAt: -1 })
       .limit(parseInt(limit))
-      .select('-imageData'); // Exclude large binary data
+      .select('-imageData'); // Excluir datos binarios
     
     res.json(screenshots);
   } catch (error) {
