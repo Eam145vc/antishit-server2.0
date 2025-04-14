@@ -200,8 +200,9 @@ export const SocketProvider = ({ children }) => {
         fromChannel, 
         toChannel,
         // Add who made the change
-        changedBy: user?.name || 'Judge' 
+        changedBy: user?.name || 'Judge'
       });
+      
       toast.success(`Moving ${activisionId} to channel ${toChannel}`);
       return true;
     }
@@ -224,5 +225,3 @@ export const SocketProvider = ({ children }) => {
     </SocketContext.Provider>
   );
 };
-
-export const useSocket = () => useContext(SocketContext);
