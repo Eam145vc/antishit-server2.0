@@ -40,38 +40,38 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   // Estado para lightbox de imagen
   const [selectedScreenshot, setSelectedScreenshot] = useState(null);
 
-  // Improved function to determine the origin of a screenshot with better detection
+  // Mejorada: función para determinar la fuente de una captura con mejor detección
   const forceCorrectSource = (screenshot) => {
-    // If the screenshot already has a reliable source field, trust it
+    // Si la captura ya tiene un campo source confiable, confía en él
     if (screenshot.source === 'judge' || screenshot.source === 'user') {
       return screenshot.source;
     }
     
-    // If the type is explicitly set
+    // Si el tipo está explícitamente establecido
     if (screenshot.type === 'judge-requested') {
       return 'judge';
     }
     
-    // Prioritized checks for judge-requested screenshots
+    // Comprobaciones priorizadas para capturas solicitadas por jueces
     if (
-      // Check for request metadata
+      // Verificar metadatos de la solicitud
       screenshot.requestInfo?.FORCE_JUDGE_TYPE === true ||
-      // Check if there's a requestedBy field (judges request)
+      // Verificar si hay un campo requestedBy (solicitud de jueces)
       screenshot.requestedBy || 
       screenshot.judgeId ||
-      // Check request flags
+      // Verificar banderas de solicitud
       screenshot.isJudgeRequested === true ||
       screenshot.fromJudge === true
     ) {
       return 'judge';
     }
     
-    // Secondary indicators (less reliable)
+    // Indicadores secundarios (menos confiables)
     const judgeIndicators = [
-      // Check for judge references in notes
+      // Buscar referencias a jueces en las notas
       screenshot.notes?.toLowerCase()?.includes("judge"),
       screenshot.notes?.toLowerCase()?.includes("dashboard"),
-      // Other possible flags
+      // Otras posibles banderas
       screenshot.requestSource === 'judge'
     ];
     
@@ -79,7 +79,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       return 'judge';
     }
     
-    // Default to user if no judge indicators are found
+    // Por defecto, si no se encuentran indicadores de juez, es del usuario
     return 'user';
   };
 
@@ -190,7 +190,8 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
           <div className="absolute bottom-4 left-0 right-0 text-center text-white bg-black bg-opacity-50 p-2">
             <p>{screenshot.activisionId} - Canal {screenshot.channelId}</p>
             <p>
-              {new Date(screenshot.capturedAt).toLocaleString()}
+              {new Date(screenshot.capturedAt).toLocaleString()} - 
+              {screenshot.source === 'judge' ? ' Solicitado por juez' : ' Enviado por cliente'}
             </p>
           </div>
         </div>
@@ -225,7 +226,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       
       // Solicitar captura
       if (connected) {
-        // Using socket with source param
+        // Usar socket con parámetro de fuente
         const result = requestScreenshot(activisionId, currentChannelId, {
           source: 'judge',
           isJudgeRequest: true,
@@ -298,6 +299,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       
       if (response.data && Array.isArray(response.data)) {
         const processedScreenshots = await Promise.all(response.data.map(async (screenshot) => {
+          // Determinar la fuente correcta
           const source = forceCorrectSource(screenshot);
           
           let thumbnailUrl = null;
@@ -358,6 +360,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         matchesDate = matchesDate && screenshotDate <= endDate;
       }
       
+      // Filtrar por source - valor 'all' muestra todos
       let matchesSource = sourceFilter === 'all' || screenshot.source === sourceFilter;
       
       return matchesSearch && matchesDate && matchesSource;
@@ -425,6 +428,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
       }
       
       const processedScreenshots = await Promise.all(response.data.map(async screenshot => {
+        // Determinar correctamente la fuente de la captura para cada elemento
         const source = forceCorrectSource(screenshot);
         
         try {
@@ -692,6 +696,13 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
                 </div>
                 <div className="mt-1 text-xs text-gray-500 flex justify-between">
                   <span>Canal {screenshot.channelId}</span>
+                  <span className={`${
+                    screenshot.source === 'user' 
+                      ? 'text-primary-600' 
+                      : 'text-warning-600 font-medium'
+                  }`}>
+                    {screenshot.source === 'user' ? 'Enviada por usuario' : 'Solicitada por juez'}
+                  </span>
                 </div>
                 <div className="mt-3 flex justify-end">
                   <Link 
