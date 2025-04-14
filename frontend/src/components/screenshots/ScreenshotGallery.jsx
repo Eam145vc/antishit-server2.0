@@ -42,7 +42,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
   const [selectedScreenshot, setSelectedScreenshot] = useState(null);
 
   // Mejorada: función para determinar la fuente de una captura con mejor detección
-  const forceCorrectSource = (screenshot) => {
+  const forceCorrectSource = useCallback((screenshot) => {
     // Si la captura ya tiene un campo source confiable, confía en él
     if (screenshot.source === 'judge' || screenshot.source === 'user') {
       return screenshot.source;
@@ -82,10 +82,10 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     
     // Por defecto, si no se encuentran indicadores de juez, es del usuario
     return 'user';
-  };
+  }, []);
 
   // Generar miniatura ficticia para capturas sin imagen (mejorado)
-  const generateDummyThumbnail = (screenshot) => {
+  const generateDummyThumbnail = useCallback((screenshot) => {
     // Asegurarnos de que cada hash sea único y determinista
     const getHashCode = (str) => {
       let hash = 0;
@@ -121,7 +121,7 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         </text>
       </svg>
     `)}`;
-  };
+  }, []);
 
   // Componente Lightbox para visualización de capturas (actualizado)
   const ScreenshotLightbox = ({ screenshot, onClose }) => {
@@ -308,9 +308,10 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     }
   };
 
-  // Función para actualizar datos de capturas
+  // Función para actualizar datos de capturas - versión mejorada
   const refreshData = useCallback(async () => {
     try {
+      setIsLoading(true);
       setIsRefreshing(true);
       toast.loading('Actualizando capturas...', { id: 'refresh-toast' });
       
@@ -330,51 +331,77 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         url = `${apiUrl}/screenshots/player/${playerId || id}`;
       }
       
+      // Limpiar cualquier error previo
+      setError(null);
+      
       const response = await axios.get(url, { headers });
       
-      if (response.data && Array.isArray(response.data)) {
-        const processedScreenshots = await Promise.all(response.data.map(async (screenshot) => {
-          // Determinar la fuente correcta
-          const source = forceCorrectSource(screenshot);
+      if (!Array.isArray(response.data)) {
+        throw new Error('Formato de respuesta inválido');
+      }
+      
+      // Procesar capturas con imágenes
+      const processedScreenshots = await Promise.all(response.data.map(async (screenshot) => {
+        // Determinar la fuente correcta
+        const source = forceCorrectSource(screenshot);
+        
+        try {
+          // Intentar obtener la imagen
+          const imageResponse = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
           
-          let thumbnailUrl = null;
-          try {
-            const imageResponse = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
-            
-            if (imageResponse.data && imageResponse.data.imageData) {
-              thumbnailUrl = imageResponse.data.imageData.startsWith('data:image')
-                ? imageResponse.data.imageData
-                : `data:image/png;base64,${imageResponse.data.imageData}`;
-            }
-          } catch (error) {
-            console.warn(`No se pudo cargar imagen para captura ${screenshot._id}:`, error);
+          let thumbnailUrl;
+          if (imageResponse.data && imageResponse.data.imageData) {
+            thumbnailUrl = imageResponse.data.imageData.startsWith('data:image')
+              ? imageResponse.data.imageData
+              : `data:image/png;base64,${imageResponse.data.imageData}`;
+          } else {
             thumbnailUrl = generateDummyThumbnail(screenshot);
           }
           
           return {
             ...screenshot,
             source,
-            thumbnailUrl
+            thumbnailUrl,
+            imageData: thumbnailUrl
           };
-        }));
-        
-        setScreenshots(processedScreenshots);
-        applyFilters(processedScreenshots);
-        
-        toast.success(`${processedScreenshots.length} capturas cargadas`, { id: 'refresh-toast' });
+        } catch (imageError) {
+          console.warn(`No sepudo cargar imagen para captura ${screenshot._id}:`, imageError);
+          return {
+            ...screenshot,
+            source,
+            thumbnailUrl: generateDummyThumbnail(screenshot)
+          };
+        }
+      }));
+      
+      // Actualizar estado directamente
+      setScreenshots(processedScreenshots);
+      applyFilters(processedScreenshots);
+      
+      toast.success(`${processedScreenshots.length} capturas actualizadas`, { id: 'refresh-toast' });
+    } catch (error) {
+      console.error('Error al actualizar capturas:', error);
+      
+      // Manejar diferentes tipos de errores
+      if (error.response) {
+        // Error de respuesta del servidor
+        setError(`Error del servidor: ${error.response.data.message || 'No se pudieron cargar las capturas'}`);
+      } else if (error.request) {
+        // Error de solicitud sin respuesta
+        setError('No se pudo conectar con el servidor');
       } else {
-        toast.error('Formato de respuesta inválido', { id: 'refresh-toast' });
+        // Error de configuración de la solicitud
+        setError('Error al intentar actualizar capturas');
       }
       
-    } catch (error) {
-      console.error('Error actualizando datos:', error);
-      toast.error('Error al actualizar capturas', { id: 'refresh-toast' });
+      toast.error('No se pudieron actualizar las capturas', { id: 'refresh-toast' });
     } finally {
+      setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [playerId, id, navigate]);
+  }, [playerId, id, navigate, forceCorrectSource, generateDummyThumbnail]);
 
-  // Aplicar filtros
+  // Función para aplicar filtros
   const applyFilters = useCallback((screenshotsToFilter = screenshots) => {
     const filtered = screenshotsToFilter.filter((screenshot) => {
       const matchesSearch = !searchTerm || 
@@ -404,30 +431,8 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     setFilteredScreenshots(filtered);
   }, [searchTerm, dateFilter, sourceFilter, screenshots]);
 
-  // Cargar capturas al inicio o cuando cambian las props
-  useEffect(() => {
-    if (propsScreenshots) {
-      const processedScreenshots = propsScreenshots.map(screenshot => ({
-        ...screenshot,
-        source: forceCorrectSource(screenshot),
-        thumbnailUrl: screenshot.thumbnailUrl || generateDummyThumbnail(screenshot)
-      }));
-      
-      setScreenshots(processedScreenshots);
-      applyFilters(processedScreenshots);
-      return;
-    }
-    
-    fetchScreenshots();
-  }, [propsScreenshots, playerId, id, applyFilters]);
-
-  // Aplicar filtros cuando cambien los criterios
-  useEffect(() => {
-    applyFilters();
-  }, [searchTerm, dateFilter, sourceFilter, applyFilters]);
-
   // Cargar capturas desde la API
-  const fetchScreenshots = async () => {
+  const fetchScreenshots = useCallback(async () => {
     try {
       setIsLoading(true);
       
@@ -449,27 +454,19 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
         url = `${apiUrl}/screenshots/player/${playerId || id}`;
       }
       
-      console.log('Solicitando capturas desde:', url);
       const response = await axios.get(url, { headers });
-      console.log('Respuesta de capturas:', response.data);
       
       if (!Array.isArray(response.data)) {
-        console.error('Datos de respuesta inválidos, no es un array:', response.data);
-        setError('Formato de respuesta inválido');
-        setScreenshots([]);
-        setFilteredScreenshots([]);
-        setIsLoading(false);
-        return;
+        throw new Error('Formato de respuesta inválido');
       }
       
-      const processedScreenshots = await Promise.all(response.data.map(async screenshot => {
-        // Determinar correctamente la fuente de la captura para cada elemento
+      const processedScreenshots = await Promise.all(response.data.map(async (screenshot) => {
         const source = forceCorrectSource(screenshot);
         
         try {
           const imageResponse = await axios.get(`${apiUrl}/screenshots/${screenshot._id}/image`, { headers });
-          let thumbnailUrl;
           
+          let thumbnailUrl;
           if (imageResponse.data && imageResponse.data.imageData) {
             thumbnailUrl = imageResponse.data.imageData.startsWith('data:image') 
               ? imageResponse.data.imageData 
@@ -505,7 +502,29 @@ const ScreenshotGallery = ({ screenshots: propsScreenshots, playerId, isEmbedded
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [playerId, id, navigate, applyFilters, forceCorrectSource, generateDummyThumbnail]);
+
+  // Cargar capturas al inicio o cuando cambian las props
+  useEffect(() => {
+    if (propsScreenshots) {
+      const processedScreenshots = propsScreenshots.map(screenshot => ({
+        ...screenshot,
+        source: forceCorrectSource(screenshot),
+        thumbnailUrl: screenshot.thumbnailUrl || generateDummyThumbnail(screenshot)
+      }));
+      
+      setScreenshots(processedScreenshots);
+      applyFilters(processedScreenshots);
+      return;
+    }
+    
+    fetchScreenshots();
+  }, [propsScreenshots, playerId, id, applyFilters, fetchScreenshots, forceCorrectSource, generateDummyThumbnail]);
+
+  // Aplicar filtros cuando cambien los criterios
+  useEffect(() => {
+    applyFilters();
+  }, [searchTerm, dateFilter, sourceFilter, applyFilters]);
 
   // Restablecer filtros
   const resetFilters = () => {
