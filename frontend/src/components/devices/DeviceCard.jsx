@@ -1,4 +1,3 @@
-// src/components/devices/DeviceCard.jsx
 import { Link } from 'react-router-dom';
 import {
   DeviceTabletIcon,
@@ -57,7 +56,33 @@ const DeviceCard = ({ device }) => {
     }
   };
   
+  // Extraer información de monitor si está disponible
+  const getMonitorInfo = () => {
+    if (!device.isMonitor && !device.type?.toLowerCase().includes('monitor')) {
+      return null;
+    }
+    
+    // Intentar obtener información de varias fuentes posibles
+    const resolution = 
+      (device.monitorInfo?.resolution) || 
+      (device.description?.match(/\d+\s*x\s*\d+/)?.[0]) || 
+      'Desconocida';
+    
+    const manufacturer = 
+      device.manufacturer || 
+      device.monitorInfo?.manufacturer || 
+      'Desconocido';
+    
+    const model = 
+      device.monitorInfo?.model || 
+      device.name?.replace(manufacturer, '').trim() || 
+      '';
+    
+    return { resolution, manufacturer, model };
+  };
+  
   const DeviceIcon = getDeviceIcon();
+  const monitorInfo = getMonitorInfo();
   
   return (
     <div className={`card ${getTrustLevelClass()}`}>
@@ -79,16 +104,31 @@ const DeviceCard = ({ device }) => {
             <div className="mt-1 text-sm text-gray-500">
               {device.type || 'Tipo desconocido'}
             </div>
+            
+            {/* Información del fabricante - Mostrar siempre si está disponible */}
             {device.manufacturer && (
-              <div className="mt-1 text-sm text-gray-500">
+              <div className="mt-1 text-sm font-medium text-gray-700">
                 Fabricante: {device.manufacturer}
               </div>
             )}
-            {device.isMonitor && device.monitorInfo?.resolution && (
-              <div className="mt-1 text-sm text-gray-500">
-                Resolución: {device.monitorInfo.resolution}
-              </div>
+            
+            {/* Información específica de monitor */}
+            {monitorInfo && (
+              <>
+                {monitorInfo.resolution && (
+                  <div className="mt-1 text-sm text-gray-600">
+                    Resolución: {monitorInfo.resolution}
+                  </div>
+                )}
+                {monitorInfo.model && (
+                  <div className="mt-1 text-sm text-gray-600">
+                    Modelo: {monitorInfo.model}
+                  </div>
+                )}
+              </>
             )}
+            
+            {/* Estado de conexión */}
             {device.connectionStatus && (
               <div className="mt-2">
                 <span
@@ -104,6 +144,8 @@ const DeviceCard = ({ device }) => {
                 </span>
               </div>
             )}
+            
+            {/* Link al jugador */}
             {device.player && (
               <div className="mt-3 flex items-center">
                 <UsersIcon className="h-4 w-4 text-gray-400" />
