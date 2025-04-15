@@ -1,10 +1,10 @@
-// frontend/src/components/players/SystemInfoPanel.jsx
 import React, { useEffect } from 'react';
 import { 
   CpuChipIcon, 
   ComputerDesktopIcon, 
   ClockIcon,
 } from '@heroicons/react/24/outline';
+import MonitorInfoPanel from './MonitorInfoPanel';
 
 // Datos predeterminados para mostrar cuando no hay datos reales
 const DEFAULT_SYSTEM_INFO = {
@@ -38,6 +38,11 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
     console.log("Propiedades de systemInfo:", Object.keys(systemInfo));
     console.log("Tipo de hardwareInfo:", typeof hardwareInfo);
     console.log("Propiedades de hardwareInfo:", Object.keys(hardwareInfo));
+    
+    // Verificar si hay información de monitores
+    if (systemInfo && systemInfo.monitorsInfo) {
+      console.log("Información de monitores:", systemInfo.monitorsInfo);
+    }
   }, [systemInfo, hardwareInfo]);
 
   // Usar datos reales o predeterminados
@@ -214,8 +219,18 @@ const SystemInfoPanel = ({ systemInfo = {}, hardwareInfo = {} }) => {
     );
   };
 
+  // Extraer información de monitores si está disponible
+  const monitorInfoData = systemInfo && systemInfo.monitorsInfo 
+    ? systemInfo.monitorsInfo 
+    : [];
+
   return (
     <div className="space-y-6">
+      {/* Sección de Monitores (nueva) */}
+      {monitorInfoData && monitorInfoData.length > 0 && (
+        <MonitorInfoPanel monitors={monitorInfoData} />
+      )}
+
       {/* Información del Sistema Operativo */}
       <InfoSection
         title="Sistema Operativo"
