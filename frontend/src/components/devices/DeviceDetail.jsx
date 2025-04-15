@@ -57,6 +57,58 @@ const DeviceDetail = () => {
     fetchDeviceData();
   }, [id, navigate]);
   
+  // Determinar si es un monitor y extraer información específica
+  const getMonitorInfo = () => {
+    if (!device) return null;
+    
+    // Verificar si es un monitor por diferentes criterios
+    const isMonitor = 
+      device.isMonitor || 
+      device.type?.toLowerCase().includes('monitor') ||
+      device.description?.toLowerCase().includes('monitor') ||
+      device.name?.toLowerCase().includes('monitor');
+    
+    if (!isMonitor) return null;
+    
+    // Extraer información relevante
+    const resolution = 
+      device.monitorInfo?.resolution || 
+      device.description?.match(/\d+\s*x\s*\d+/)?.[0] || 
+      'Desconocida';
+    
+    const manufacturer = 
+      device.manufacturer || 
+      device.monitorInfo?.manufacturer || 
+      'Desconocido';
+    
+    const model = 
+      device.monitorInfo?.model || 
+      device.name?.replace(manufacturer, '').trim() || 
+      '';
+    
+    const refreshRate = 
+      device.monitorInfo?.refreshRate || 
+      '';
+    
+    const serialNumber = 
+      device.monitorInfo?.serialNumber || 
+      '';
+    
+    const yearOfManufacture = 
+      device.monitorInfo?.yearOfManufacture || 
+      '';
+    
+    return { 
+      isMonitor, 
+      resolution, 
+      manufacturer, 
+      model, 
+      refreshRate, 
+      serialNumber,
+      yearOfManufacture
+    };
+  };
+  
   if (isLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -133,10 +185,8 @@ const DeviceDetail = () => {
     );
   }
   
-  // Verificar si es un monitor para mostrar información específica
-  const isMonitor = device.Type?.toLowerCase() === 'monitor' || 
-                     device.type?.toLowerCase() === 'monitor' ||
-                     (device.Description || device.description || '').toLowerCase().includes('monitor');
+  // Obtener información de monitor si es aplicable
+  const monitorInfo = getMonitorInfo();
   
   return (
     <div className="space-y-6">
@@ -150,7 +200,7 @@ const DeviceDetail = () => {
       {/* Información básica del dispositivo */}
       <div className="card">
         <div className="card-header flex items-center">
-          {isMonitor ? (
+          {monitorInfo ? (
             <ComputerDesktopIcon className="h-6 w-6 text-primary-500 mr-2" />
           ) : (
             <DeviceTabletIcon className="h-6 w-6 text-primary-500 mr-2" />
@@ -176,7 +226,7 @@ const DeviceDetail = () => {
             <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
               <dt className="text-sm font-medium text-gray-500">Fabricante</dt>
               <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
-                {device.manufacturer || device.Manufacturer || 'Desconocido'}
+                {device.manufacturer || device.Manufacturer || monitorInfo?.manufacturer || 'Desconocido'}
               </dd>
             </div>
             <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
@@ -199,44 +249,58 @@ const DeviceDetail = () => {
             </div>
             
             {/* Información específica para monitores */}
-            {isMonitor && (
+            {monitorInfo && (
               <>
                 <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
                   <dt className="text-sm font-medium text-gray-500">Resolución</dt>
                   <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
-                    {(device.description || device.Description || '').match(/\d+\s*x\s*\d+/)?.[0] || 'Desconocida'}
+                    {monitorInfo.resolution}
                   </dd>
                 </div>
                 
-                {device.monitorInfo && (
-                  <>
-                    {device.monitorInfo.resolution && (
-                      <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-                        <dt className="text-sm font-medium text-gray-500">Resolución Detallada</dt>
-                        <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
-                          {device.monitorInfo.resolution}
-                        </dd>
-                      </div>
-                    )}
-                    
-                    {device.monitorInfo.refreshRate && (
-                      <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-                        <dt className="text-sm font-medium text-gray-500">Frecuencia de Actualización</dt>
-                        <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
-                          {device.monitorInfo.refreshRate} Hz
-                        </dd>
-                      </div>
-                    )}
-                    
-                    {device.monitorInfo.connectionType && (
-                      <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-                        <dt className="text-sm font-medium text-gray-500">Tipo de Conexión</dt>
-                        <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
-                          {device.monitorInfo.connectionType}
-                        </dd>
-                      </div>
-                    )}
-                  </>
+                {monitorInfo.model && (
+                  <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                    <dt className="text-sm font-medium text-gray-500">Modelo</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                      {monitorInfo.model}
+                    </dd>
+                  </div>
+                )}
+                
+                {monitorInfo.serialNumber && (
+                  <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                    <dt className="text-sm font-medium text-gray-500">Número de Serie</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                      {monitorInfo.serialNumber}
+                    </dd>
+                  </div>
+                )}
+                
+                {monitorInfo.yearOfManufacture && (
+                  <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                    <dt className="text-sm font-medium text-gray-500">Año de Fabricación</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                      {monitorInfo.yearOfManufacture}
+                    </dd>
+                  </div>
+                )}
+                
+                {device.monitorInfo?.refreshRate && (
+                  <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                    <dt className="text-sm font-medium text-gray-500">Frecuencia</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                      {device.monitorInfo.refreshRate} Hz
+                    </dd>
+                  </div>
+                )}
+                
+                {device.monitorInfo?.connectionType && (
+                  <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                    <dt className="text-sm font-medium text-gray-500">Tipo de Conexión</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                      {device.monitorInfo.connectionType}
+                    </dd>
+                  </div>
                 )}
               </>
             )}
@@ -246,6 +310,48 @@ const DeviceDetail = () => {
                 <dt className="text-sm font-medium text-gray-500">Descripción</dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
                   {device.description}
+                </dd>
+              </div>
+            )}
+            
+            {device.driver && (
+              <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                <dt className="text-sm font-medium text-gray-500">Controlador</dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                  {device.driver}
+                </dd>
+              </div>
+            )}
+            
+            {/* Estado de conexión */}
+            <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+              <dt className="text-sm font-medium text-gray-500">Estado de conexión</dt>
+              <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                <span
+                  className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
+                    device.connectionStatus === 'Connected'
+                      ? 'bg-success-100 text-success-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  {device.connectionStatus === 'Connected'
+                    ? 'Conectado'
+                    : device.connectionStatus || 'Desconocido'}
+                </span>
+              </dd>
+            </div>
+            
+            {/* Información del jugador */}
+            {device.player && (
+              <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                <dt className="text-sm font-medium text-gray-500">Jugador</dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                  <Link
+                    to={`/players/${device.player._id}`}
+                    className="text-primary-600 hover:text-primary-500"
+                  >
+                    {device.player.activisionId || 'Jugador desconocido'}
+                  </Link>
                 </dd>
               </div>
             )}
