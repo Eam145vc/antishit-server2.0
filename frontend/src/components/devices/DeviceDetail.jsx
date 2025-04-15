@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { 
+  ExclamationTriangleIcon,
+  ComputerDesktopIcon,
+  TagIcon,
+  CpuChipIcon,
+  ArrowsPointingOutIcon
+} from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
 const DeviceDetail = () => {
@@ -127,6 +133,11 @@ const DeviceDetail = () => {
     );
   }
   
+  // Verificar si es un monitor para mostrar información específica
+  const isMonitor = device.Type?.toLowerCase() === 'monitor' || 
+                     device.type?.toLowerCase() === 'monitor' ||
+                     (device.Description || device.description || '').toLowerCase().includes('monitor');
+  
   return (
     <div className="space-y-6">
       <div>
@@ -138,9 +149,14 @@ const DeviceDetail = () => {
       
       {/* Información básica del dispositivo */}
       <div className="card">
-        <div className="card-header">
+        <div className="card-header flex items-center">
+          {isMonitor ? (
+            <ComputerDesktopIcon className="h-6 w-6 text-primary-500 mr-2" />
+          ) : (
+            <DeviceTabletIcon className="h-6 w-6 text-primary-500 mr-2" />
+          )}
           <h3 className="text-lg font-medium text-gray-900">
-            {device.name || 'Dispositivo sin nombre'}
+            {device.name || device.Name || 'Dispositivo sin nombre'}
           </h3>
         </div>
         <div className="card-body">
@@ -148,25 +164,25 @@ const DeviceDetail = () => {
             <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
               <dt className="text-sm font-medium text-gray-500">ID del dispositivo</dt>
               <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
-                {device.deviceId}
+                {device.deviceId || device.DeviceId}
               </dd>
             </div>
             <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
               <dt className="text-sm font-medium text-gray-500">Tipo</dt>
               <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
-                {device.type || 'Desconocido'}
+                {device.type || device.Type || 'Desconocido'}
               </dd>
             </div>
             <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
               <dt className="text-sm font-medium text-gray-500">Fabricante</dt>
               <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
-                {device.manufacturer || 'Desconocido'}
+                {device.manufacturer || device.Manufacturer || 'Desconocido'}
               </dd>
             </div>
             <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
               <dt className="text-sm font-medium text-gray-500">Estado</dt>
               <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
-                {device.status || 'Desconocido'}
+                {device.status || device.Status || 'Desconocido'}
               </dd>
             </div>
             <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
@@ -181,6 +197,58 @@ const DeviceDetail = () => {
                 </span>
               </dd>
             </div>
+            
+            {/* Información específica para monitores */}
+            {isMonitor && (
+              <>
+                <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                  <dt className="text-sm font-medium text-gray-500">Resolución</dt>
+                  <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                    {(device.description || device.Description || '').match(/\d+\s*x\s*\d+/)?.[0] || 'Desconocida'}
+                  </dd>
+                </div>
+                
+                {device.monitorInfo && (
+                  <>
+                    {device.monitorInfo.resolution && (
+                      <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                        <dt className="text-sm font-medium text-gray-500">Resolución Detallada</dt>
+                        <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                          {device.monitorInfo.resolution}
+                        </dd>
+                      </div>
+                    )}
+                    
+                    {device.monitorInfo.refreshRate && (
+                      <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                        <dt className="text-sm font-medium text-gray-500">Frecuencia de Actualización</dt>
+                        <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                          {device.monitorInfo.refreshRate} Hz
+                        </dd>
+                      </div>
+                    )}
+                    
+                    {device.monitorInfo.connectionType && (
+                      <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                        <dt className="text-sm font-medium text-gray-500">Tipo de Conexión</dt>
+                        <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                          {device.monitorInfo.connectionType}
+                        </dd>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+            
+            {device.description && (
+              <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                <dt className="text-sm font-medium text-gray-500">Descripción</dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                  {device.description}
+                </dd>
+              </div>
+            )}
           </dl>
         </div>
       </div>
