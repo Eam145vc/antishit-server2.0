@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import {
@@ -8,6 +9,11 @@ import {
 
 const Navbar = ({ onMenuClick, socketConnected }) => {
   const { user, logout } = useAuth();
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  
+  const toggleUserMenu = () => {
+    setShowUserMenu(!showUserMenu);
+  };
   
   return (
     <nav className="sticky top-0 z-10 flex h-16 flex-shrink-0 border-b border-gray-200 bg-white shadow-sm">
@@ -44,7 +50,10 @@ const Navbar = ({ onMenuClick, socketConnected }) => {
           {/* Menú de usuario */}
           <div className="relative ml-3">
             <div className="flex">
-              <button className="flex items-center text-sm">
+              <button 
+                className="flex items-center text-sm"
+                onClick={toggleUserMenu}
+              >
                 <span className="sr-only">Abrir menú de usuario</span>
                 <UserCircleIcon className="h-8 w-8 text-gray-600" />
                 <div className="ml-2 hidden md:block">
@@ -59,20 +68,26 @@ const Navbar = ({ onMenuClick, socketConnected }) => {
             </div>
             
             {/* Dropdown de usuario */}
-            <div className="absolute right-0 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-              <Link
-                to="/profile"
-                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              >
-                Mi Perfil
-              </Link>
-              <button
-                onClick={logout}
-                className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
-              >
-                Cerrar Sesión
-              </button>
-            </div>
+            {showUserMenu && (
+              <div className="absolute right-0 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                <Link
+                  to="/profile"
+                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  onClick={() => setShowUserMenu(false)}
+                >
+                  Mi Perfil
+                </Link>
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    logout();
+                  }}
+                  className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  Cerrar Sesión
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
