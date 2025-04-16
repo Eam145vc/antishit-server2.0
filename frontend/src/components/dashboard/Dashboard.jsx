@@ -3,110 +3,64 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { UserIcon, UsersIcon, DeviceTabletIcon, BellAlertIcon } from '@heroicons/react/24/outline';
 import StatsCard from './StatsCard';
-import api from '../../services/api';
+import ChannelPlayersCard from './ChannelPlayersCard';
+import RecentAlertsCard from './RecentAlertsCard';
+import { useSocket } from '../../context/SocketContext';
 
 const Dashboard = () => {
-  const [players, setPlayers] = useState([]);
+  const { connected } = useSocket();
   const [stats, setStats] = useState({
     players: { total: 0, online: 0, playing: 0 },
     devices: { total: 0, byTrustLevel: {}, byType: {} },
     screenshots: { total: 0, last24h: 0 }
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // Cargar estadísticas y jugadores activos
+  
+  // Cargar estadísticas
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchStats = async () => {
       try {
         setIsLoading(true);
         
-        // Usar la configuración de API correcta
         const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
-        console.log('Usando URL de API:', apiUrl);
+        const token = localStorage.getItem('token');
         
-        // Obtener jugadores activos usando la API directamente
-        try {
-          const playersResponse = await axios.get(`${apiUrl}/players`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-          });
-          
-          console.log('Respuesta de jugadores:', playersResponse.data);
-          
-          if (playersResponse.data) {
-            // Filtrar jugadores que están realmente online
-            const activePlayers = playersResponse.data.filter(player => {
-              // Verificar si el jugador está realmente online
-              const lastSeenDate = new Date(player.lastSeen);
-              const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-              return player.isOnline && lastSeenDate > fiveMinutesAgo;
-            });
-            
-            setPlayers(activePlayers);
-            
-            // Construir estadísticas manuales a partir de los datos de jugadores
-            setStats(prevStats => ({
-              ...prevStats,
-              players: {
-                total: playersResponse.data.length,
-                online: activePlayers.length,
-                playing: activePlayers.filter(p => p.isGameRunning).length
-              }
-            }));
-          }
-        } catch (playersError) {
-          console.error('Error al cargar jugadores:', playersError);
-          setError('Error al cargar jugadores');
-        }
+        if (!token) return;
         
-        // Intentar obtener estadísticas detalladas
+        const headers = {
+          'Authorization': `Bearer ${token}`
+        };
+        
         try {
-          const statsResponse = await axios.get(`${apiUrl}/monitor/stats`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-          });
+          const statsResponse = await axios.get(`${apiUrl}/monitor/stats`, { headers });
           
           if (statsResponse.data) {
-            console.log('Respuesta de estadísticas:', statsResponse.data);
-            setStats(prevStats => ({
-              ...prevStats,
-              ...statsResponse.data
-            }));
+            setStats(statsResponse.data);
           }
         } catch (statsError) {
-          console.warn('No se pudieron cargar estadísticas detalladas, usando básicas', statsError);
+          console.warn('No se pudieron cargar estadísticas detalladas', statsError);
         }
-        
       } catch (err) {
         console.error('Error al cargar datos del dashboard:', err);
-        setError('Error al cargar datos del dashboard');
       } finally {
         setIsLoading(false);
       }
     };
     
-    fetchData();
+    fetchStats();
     
     // Actualizar datos cada 60 segundos
-    const intervalId = setInterval(fetchData, 60000);
+    const intervalId = setInterval(fetchStats, 60000);
     
     return () => clearInterval(intervalId);
   }, []);
-
-  // Para depuración - mostrar jugadores conectados en consola
-  useEffect(() => {
-    console.log('Jugadores actuales:', players);
-  }, [players]);
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Resumen general del sistema Anti-Cheat
+          Monitoreo en tiempo real del sistema Anti-Cheat
         </p>
       </div>
       
@@ -129,112 +83,89 @@ const Dashboard = () => {
           href="/live-monitor"
         />
         <StatsCard
-          title="Dispositivos"
-          value={stats.devices.total}
-          valueDetail={`${stats.devices.byTrustLevel?.suspicious || 0} sospechosos`}
+          title="Capturas"
+          value={stats.screenshots.last24h}
+          valueDetail={`últimas 24h`}
           icon={DeviceTabletIcon}
           color="warning"
-          href="/devices"
+          href="/screenshots"
         />
         <StatsCard
-          title="Alertas"
-          value={stats.alerts?.total || 0}
-          valueDetail={`${stats.alerts?.high || 0} críticas`}
+          title="Dispositivos"
+          value={stats.devices.byTrustLevel?.suspicious || 0}
+          valueDetail="sospechosos"
           icon={BellAlertIcon}
           color="danger"
           href="/alerts"
         />
       </div>
       
-      {/* Jugadores activos */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="p-4 border-b flex justify-between items-center">
-          <h3 className="text-lg font-medium">Jugadores Activos</h3>
-          <Link to="/players" className="text-sm text-blue-600 hover:underline">Ver todos</Link>
+      {/* Estado de conexión en tiempo real */}
+      {!connected && (
+        <div className="rounded-md bg-warning-50 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <BellAlertIcon className="h-5 w-5 text-warning-400" aria-hidden="true" />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-warning-800">
+                Sin conexión en tiempo real
+              </h3>
+              <div className="mt-2 text-sm text-warning-700">
+                Las actualizaciones en tiempo real no están disponibles. Los datos pueden no estar actualizados.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Contenido principal del dashboard */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Jugadores por canal */}
+        <div className="lg:col-span-1">
+          <ChannelPlayersCard />
         </div>
         
-        {isLoading ? (
+        {/* Alertas recientes */}
+        <div className="lg:col-span-1">
+          <RecentAlertsCard />
+        </div>
+      </div>
+      
+      {/* Enlaces rápidos */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="card shadow-sm hover:shadow-md transition-shadow">
           <div className="p-6 text-center">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-600 border-r-transparent"></div>
-            <p className="mt-2 text-gray-600">Cargando jugadores...</p>
+            <UserIcon className="h-8 w-8 mx-auto text-primary-600 mb-2" />
+            <h3 className="text-lg font-medium text-gray-900 mb-1">Monitoreo en Vivo</h3>
+            <p className="text-sm text-gray-500 mb-4">Supervisa jugadores en tiempo real</p>
+            <Link to="/live-monitor" className="btn-primary text-xs">
+              Ir a Monitoreo
+            </Link>
           </div>
-        ) : error ? (
-          <div className="p-6 text-center text-red-600">
-            {error}
+        </div>
+        
+        <div className="card shadow-sm hover:shadow-md transition-shadow">
+          <div className="p-6 text-center">
+            <DeviceTabletIcon className="h-8 w-8 mx-auto text-warning-600 mb-2" />
+            <h3 className="text-lg font-medium text-gray-900 mb-1">Historial de Capturas</h3>
+            <p className="text-sm text-gray-500 mb-4">Ver capturas de pantalla</p>
+            <Link to="/screenshots" className="btn-primary text-xs">
+              Ver Capturas
+            </Link>
           </div>
-        ) : players.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            No hay jugadores activos en este momento
+        </div>
+        
+        <div className="card shadow-sm hover:shadow-md transition-shadow">
+          <div className="p-6 text-center">
+            <BellAlertIcon className="h-8 w-8 mx-auto text-danger-600 mb-2" />
+            <h3 className="text-lg font-medium text-gray-900 mb-1">Alertas</h3>
+            <p className="text-sm text-gray-500 mb-4">Ver todas las notificaciones</p>
+            <Link to="/alerts" className="btn-primary text-xs">
+              Ver Alertas
+            </Link>
           </div>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-xs text-gray-500 border-b">
-                <th className="p-2">JUGADOR</th>
-                <th className="p-2">ESTADO</th>
-                <th className="p-2">CANAL</th>
-                <th className="p-2">ÚLTIMA ACTIVIDAD</th>
-              </tr>
-            </thead>
-            <tbody>
-              {players.map(player => {
-                // Calcular tiempo relativo de última actividad
-                const lastSeen = new Date(player.lastSeen);
-                const now = new Date();
-                const diffInSeconds = Math.floor((now - lastSeen) / 1000);
-                
-                let lastActivity = 'hace menos de un minuto';
-                if (diffInSeconds >= 60 && diffInSeconds < 3600) {
-                  const minutes = Math.floor(diffInSeconds / 60);
-                  lastActivity = `hace ${minutes} minuto${minutes !== 1 ? 's' : ''}`;
-                } else if (diffInSeconds >= 3600 && diffInSeconds < 86400) {
-                  const hours = Math.floor(diffInSeconds / 3600);
-                  lastActivity = `hace ${hours} hora${hours !== 1 ? 's' : ''}`;
-                } else if (diffInSeconds >= 86400) {
-                  const days = Math.floor(diffInSeconds / 86400);
-                  lastActivity = `hace ${days} día${days !== 1 ? 's' : ''}`;
-                }
-                
-                return (
-                  <tr key={player._id} className="border-b hover:bg-gray-50">
-                    <td className="p-2 flex items-center">
-                      <span 
-                        className={`h-2 w-2 rounded-full mr-2 ${
-                          player.isOnline ? 'bg-green-500' : 'bg-gray-300'
-                        }`}
-                      ></span>
-                      <Link to={`/players/${player._id}`} className="hover:text-primary-600">
-                        {player.activisionId}
-                      </Link>
-                    </td>
-                    <td className="p-2">
-                      <span 
-                        className={`px-2 py-1 rounded-full text-xs ${
-                          !player.isOnline
-                            ? 'bg-gray-100 text-gray-800'
-                            : player.isGameRunning
-                            ? 'bg-success-100 text-success-800'
-                            : 'bg-warning-100 text-warning-800'
-                        }`}
-                      >
-                        {!player.isOnline
-                          ? 'Desconectado'
-                          : player.isGameRunning
-                          ? 'Jugando'
-                          : 'Conectado'}
-                      </span>
-                    </td>
-                    <td className="p-2">Canal {player.currentChannelId}</td>
-                    <td className="p-2">{lastActivity}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+        </div>
       </div>
     </div>
   );
-};
-
-export default Dashboard;
