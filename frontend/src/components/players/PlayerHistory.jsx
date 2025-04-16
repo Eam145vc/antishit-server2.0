@@ -4,6 +4,7 @@ import axios from 'axios';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ExclamationTriangleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
 
 const PlayerHistory = () => {
   const [players, setPlayers] = useState([]);
@@ -15,8 +16,10 @@ const PlayerHistory = () => {
     endDate: ''
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [sessionError, setSessionError] = useState(null);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
 
   // Cargar todos los jugadores
@@ -37,13 +40,27 @@ const PlayerHistory = () => {
           'Authorization': `Bearer ${token}`
         };
         
-        const response = await axios.get(`${apiUrl}/players`, { headers });
+        // Forma directa de hacer la solicitud para evitar problemas con interceptores
+        console.log('Solicitando jugadores desde URL:', `${apiUrl}/players`);
+        const response = await axios({
+          method: 'GET',
+          url: `${apiUrl}/players`,
+          headers
+        });
+        
+        console.log('Respuesta de jugadores:', response);
+        
+        if (!response.data) {
+          throw new Error('No se recibieron datos de jugadores');
+        }
+        
         setPlayers(response.data);
         setFilteredPlayers(response.data);
         setError(null);
       } catch (err) {
         console.error('Error al cargar jugadores:', err);
-        setError('Error al cargar jugadores');
+        setError(`Error al cargar jugadores: ${err.message}`);
+        toast.error('Error al cargar lista de jugadores');
       } finally {
         setIsLoading(false);
       }
@@ -57,13 +74,14 @@ const PlayerHistory = () => {
     if (!playerId) return;
     
     try {
-      setIsRefreshing(true);
+      setIsSessionLoading(true);
+      setSessionError(null);
       
       const apiUrl = import.meta.env.VITE_API_URL || 'https://antishit-server2-0.onrender.com/api';
       const token = localStorage.getItem('token');
       
       if (!token) {
-        setError('Sesión expirada');
+        setSessionError('Sesión expirada');
         return;
       }
       
@@ -71,23 +89,43 @@ const PlayerHistory = () => {
         'Authorization': `Bearer ${token}`
       };
       
-      const response = await axios.get(`${apiUrl}/players/${playerId}/history`, { headers });
+      console.log('Solicitando historial desde URL:', `${apiUrl}/players/${playerId}/history`);
+      
+      // Forma directa de hacer la solicitud para evitar problemas con interceptores
+      const response = await axios({
+        method: 'GET',
+        url: `${apiUrl}/players/${playerId}/history`,
+        headers
+      });
+      
+      console.log('Respuesta de historial:', response);
+      
+      if (!response.data || !Array.isArray(response.data)) {
+        throw new Error('Formato de respuesta inválido para historial');
+      }
       
       // Procesar datos para mostrar sesiones
-      const sessionData = response.data.map(data => ({
-        _id: data._id,
-        timestamp: data.timestamp,
-        isGameRunning: data.isGameRunning,
-        channelId: data.channelId,
-        processes: data.processes ? data.processes.length : 0,
-        usbDevices: data.usbDevices ? data.usbDevices.length : 0
-      }));
+      const sessionData = response.data.map(data => {
+        // Verificar si los campos necesarios existen para evitar errores
+        return {
+          _id: data._id || `temp-${Date.now()}`,
+          timestamp: data.timestamp || new Date().toISOString(),
+          isGameRunning: data.isGameRunning || false,
+          channelId: data.channelId || 0,
+          processes: Array.isArray(data.processes) ? data.processes.length : 0,
+          usbDevices: Array.isArray(data.usbDevices) ? data.usbDevices.length : 0
+        };
+      });
       
       setSessions(sessionData);
+      setSessionError(null);
     } catch (err) {
       console.error('Error al cargar historial del jugador:', err);
+      setSessionError(`Error al cargar historial: ${err.message}`);
       setSessions([]);
+      toast.error('Error al cargar historial del jugador');
     } finally {
+      setIsSessionLoading(false);
       setIsRefreshing(false);
     }
   };
@@ -99,7 +137,7 @@ const PlayerHistory = () => {
     // Filtrar por búsqueda
     if (searchTerm) {
       filtered = filtered.filter(player => 
-        player.activisionId.toLowerCase().includes(searchTerm.toLowerCase())
+        player.activisionId?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
@@ -121,6 +159,7 @@ const PlayerHistory = () => {
 
   // Manejar selección de jugador
   const handleSelectPlayer = (player) => {
+    console.log('Jugador seleccionado:', player);
     setSelectedPlayer(player);
     fetchPlayerSessions(player._id);
   };
@@ -128,7 +167,18 @@ const PlayerHistory = () => {
   // Manejar actualización de datos
   const handleRefresh = () => {
     if (selectedPlayer) {
+      setIsRefreshing(true);
       fetchPlayerSessions(selectedPlayer._id);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      return format(parseISO(dateString), 'dd/MM/yyyy HH:mm:ss', { locale: es });
+    } catch (err) {
+      console.error('Error al formatear fecha:', err);
+      return dateString;
     }
   };
 
@@ -225,7 +275,7 @@ const PlayerHistory = () => {
                         <div>
                           <div className="font-medium text-gray-900">{player.activisionId}</div>
                           <div className="text-xs text-gray-500">
-                            Última actividad: {format(new Date(player.lastSeen), 'dd/MM/yyyy HH:mm', { locale: es })}
+                            Última actividad: {formatDate(player.lastSeen)}
                           </div>
                         </div>
                       </div>
@@ -246,12 +296,12 @@ const PlayerHistory = () => {
               </h3>
               <button
                 onClick={handleRefresh}
-                disabled={!selectedPlayer || isRefreshing}
+                disabled={!selectedPlayer || isRefreshing || isSessionLoading}
                 className={`text-sm text-primary-600 hover:text-primary-800 flex items-center ${
                   !selectedPlayer ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                <ArrowPathIcon className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <ArrowPathIcon className={`h-4 w-4 mr-1 ${isRefreshing || isSessionLoading ? 'animate-spin' : ''}`} />
                 Actualizar
               </button>
             </div>
@@ -260,9 +310,13 @@ const PlayerHistory = () => {
                 <div className="p-6 text-center text-gray-500">
                   Selecciona un jugador para ver su historial
                 </div>
-              ) : isRefreshing ? (
+              ) : isSessionLoading ? (
                 <div className="p-6 flex justify-center">
                   <div className="animate-spin h-8 w-8 border-4 border-primary-500 rounded-full border-t-transparent"></div>
+                </div>
+              ) : sessionError ? (
+                <div className="p-6 text-center text-danger-600">
+                  {sessionError}
                 </div>
               ) : sessions.length === 0 ? (
                 <div className="p-6 text-center text-gray-500">
@@ -285,7 +339,7 @@ const PlayerHistory = () => {
                       {sessions.map(session => (
                         <tr key={session._id}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {format(parseISO(session.timestamp), 'dd/MM/yyyy HH:mm:ss', { locale: es })}
+                            {formatDate(session.timestamp)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             Canal {session.channelId}
