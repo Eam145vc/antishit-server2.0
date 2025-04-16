@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
-import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { useLocation, Link } from 'react-router-dom';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import {
   HomeIcon,
@@ -8,7 +8,7 @@ import {
   CameraIcon,
   ShieldCheckIcon,
   BellAlertIcon,
-  TrophyIcon,
+  ClockIcon,
   UserGroupIcon,
 } from '@heroicons/react/24/outline';
 
@@ -16,10 +16,10 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Monitoreo en Vivo', href: '/live-monitor', icon: ShieldCheckIcon },
   { name: 'Jugadores', href: '/players', icon: UsersIcon },
+  { name: 'Historial de Jugadores', href: '/players/history', icon: ClockIcon },
   { name: 'Dispositivos', href: '/devices', icon: DeviceTabletIcon },
   { name: 'Capturas', href: '/screenshots', icon: CameraIcon },
   { name: 'Alertas', href: '/alerts', icon: BellAlertIcon },
-  { name: 'Torneos', href: '/tournaments', icon: TrophyIcon },
 ];
 
 const adminNavigation = [
@@ -27,6 +27,7 @@ const adminNavigation = [
 ];
 
 const Sidebar = ({ isOpen = true, onClose }) => {
+  const location = useLocation();
   const { isAdmin } = useAuth();
   
   // Filtrar navegación basada en rol
@@ -34,6 +35,14 @@ const Sidebar = ({ isOpen = true, onClose }) => {
     ...navigation,
     ...(isAdmin ? adminNavigation : []),
   ];
+  
+  // Función para verificar si un elemento está activo
+  const isActive = (href) => {
+    if (href === '/dashboard') {
+      return location.pathname === href;
+    }
+    return location.pathname.startsWith(href);
+  };
   
   return (
     <>
@@ -60,7 +69,7 @@ const Sidebar = ({ isOpen = true, onClose }) => {
                   onClick={onClose}
                 >
                   <span className="sr-only">Cerrar sidebar</span>
-                  <ExclamationTriangleIcon className="h-6 w-6 text-white" aria-hidden="true" />
+                  <XMarkIcon className="h-6 w-6 text-white" aria-hidden="true" />
                 </button>
               </div>
               
@@ -81,7 +90,7 @@ const Sidebar = ({ isOpen = true, onClose }) => {
                         key={item.name}
                         to={item.href}
                         className={`${
-                          location.pathname.startsWith(item.href)
+                          isActive(item.href)
                             ? 'bg-primary-100 text-primary-900'
                             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                         } group flex items-center rounded-md px-2 py-2 text-base font-medium`}
@@ -89,7 +98,7 @@ const Sidebar = ({ isOpen = true, onClose }) => {
                       >
                         <item.icon
                           className={`${
-                            location.pathname.startsWith(item.href)
+                            isActive(item.href)
                               ? 'text-primary-600'
                               : 'text-gray-500 group-hover:text-gray-500'
                           } mr-4 h-6 w-6 flex-shrink-0`}
@@ -124,14 +133,14 @@ const Sidebar = ({ isOpen = true, onClose }) => {
                 key={item.name}
                 to={item.href}
                 className={`${
-                  location.pathname.startsWith(item.href)
+                  isActive(item.href)
                     ? 'bg-primary-100 text-primary-900'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 } group flex items-center rounded-md px-2 py-2 text-sm font-medium`}
               >
                 <item.icon
                   className={`${
-                    location.pathname.startsWith(item.href)
+                    isActive(item.href)
                       ? 'text-primary-600'
                       : 'text-gray-500 group-hover:text-gray-500'
                   } mr-3 h-5 w-5 flex-shrink-0`}
