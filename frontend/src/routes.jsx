@@ -4,6 +4,7 @@ import Dashboard from './components/dashboard/Dashboard';
 import Login from './components/auth/Login';
 import PlayerList from './components/players/PlayerList';
 import PlayerDetail from './components/players/PlayerDetail';
+import PlayerHistory from './components/players/PlayerHistory';
 import DeviceList from './components/devices/DeviceList';
 import DeviceDetail from './components/devices/DeviceDetail';
 import ScreenshotGallery from './components/screenshots/ScreenshotGallery';
@@ -69,6 +70,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <PlayerList />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/players/history" 
+        element={
+          <ProtectedRoute>
+            <PlayerHistory />
           </ProtectedRoute>
         } 
       />
