@@ -11,7 +11,7 @@ const {
 const { protect } = require('../middleware/auth');
 
 // Rutas públicas (desde cliente anti-cheat)
-router.post('/', saveMonitorData); // Asegúrate de pasar la función correctamente
+router.post('/', saveMonitorData);
 router.post('/game-status', updateGameStatus);
 router.post('/error', reportClientError);
 
