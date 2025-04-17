@@ -10,11 +10,18 @@ const getAlerts = async (req, res) => {
     // Get limit from query or default to 20
     const limit = parseInt(req.query.limit) || 20;
     
-    // Get optional severity filter
+    // Get optional filters
     const severityFilter = req.query.severity ? { severity: req.query.severity } : {};
+    const typeFilter = req.query.type ? { type: req.query.type } : {};
+    
+    // Combinar todos los filtros
+    const combinedFilter = {
+      ...severityFilter,
+      ...typeFilter
+    };
     
     // Query alerts with pagination and sorting
-    const alerts = await Alert.find(severityFilter)
+    const alerts = await Alert.find(combinedFilter)
       .sort({ timestamp: -1 })
       .limit(limit);
     
