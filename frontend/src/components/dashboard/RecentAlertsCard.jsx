@@ -24,6 +24,7 @@ const RecentAlertsCard = () => {
   const relevantTypes = [
     'new-device',
     'device-suspicious',
+    'dma-device-detected',
     'screenshot-taken',
     'player-reconnected',
     'new-player',
@@ -99,44 +100,51 @@ const RecentAlertsCard = () => {
     };
   }, [socket, connected]);
 
-  // Obtener icono según tipo de alerta
-  const getAlertIcon = (alert) => {
-    switch (alert.type) {
-      case 'new-device':
-      case 'device-suspicious':
-        return <DeviceTabletIcon className="h-5 w-5 text-warning-500" aria-hidden="true" />;
-      case 'screenshot-taken':
-        return <CameraIcon className="h-5 w-5 text-primary-500" aria-hidden="true" />;
-      case 'hwid-duplicate':
-        return <ExclamationTriangleIcon className="h-5 w-5 text-danger-500" aria-hidden="true" />;
-      case 'new-player':
-      case 'player-reconnected':
-        return <InformationCircleIcon className="h-5 w-5 text-primary-500" aria-hidden="true" />;
-      default:
-        return <BellAlertIcon className="h-5 w-5 text-gray-500" aria-hidden="true" />;
-    }
-  };
+// Obtener icono según tipo de alerta
+const getAlertIcon = (alert) => {
+  // Detección especial para DMA
+  if (alert.type === 'dma-device-detected') {
+    return <ExclamationTriangleIcon className="h-5 w-5 text-danger-500 animate-pulse" aria-hidden="true" />;
+  }
+  
+  switch (alert.type) {
+    case 'new-device':
+    case 'device-suspicious':
+      return <DeviceTabletIcon className="h-5 w-5 text-warning-500" aria-hidden="true" />;
+    case 'screenshot-taken':
+      return <CameraIcon className="h-5 w-5 text-primary-500" aria-hidden="true" />;
+    case 'hwid-duplicate':
+      return <ExclamationTriangleIcon className="h-5 w-5 text-danger-500" aria-hidden="true" />;
+    case 'new-player':
+    case 'player-reconnected':
+      return <InformationCircleIcon className="h-5 w-5 text-primary-500" aria-hidden="true" />;
+    default:
+      return <BellAlertIcon className="h-5 w-5 text-gray-500" aria-hidden="true" />;
+  }
+};
 
   // Obtener descripción amigable según tipo de alerta
-  const getAlertDescription = (alert) => {
-    switch (alert.type) {
-      case 'new-device':
-        return `Nuevo dispositivo detectado para ${alert.activisionId}`;
-      case 'device-suspicious':
-        return `Dispositivo sospechoso para ${alert.activisionId}`;
-      case 'screenshot-taken':
-        return `Nueva captura de pantalla de ${alert.activisionId}`;
-      case 'hwid-duplicate':
-        return `Posible cuenta duplicada: ${alert.activisionId}`;
-      case 'new-player':
-        return `Nuevo jugador conectado: ${alert.activisionId}`;
-      case 'player-reconnected':
-        return `Jugador reconectado: ${alert.activisionId}`;
-      default:
-        return alert.message;
-    }
-  };
-
+const getAlertDescription = (alert) => {
+  switch (alert.type) {
+    case 'new-device':
+      return `Nuevo dispositivo detectado para ${alert.activisionId}`;
+    case 'device-suspicious':
+      return `Dispositivo sospechoso para ${alert.activisionId}`;
+    case 'dma-device-detected':
+      return `¡ALERTA CRÍTICA! Dispositivo DMA detectado para ${alert.activisionId}`;
+    case 'screenshot-taken':
+      return `Nueva captura de pantalla de ${alert.activisionId}`;
+    case 'hwid-duplicate':
+      return `Posible cuenta duplicada: ${alert.activisionId}`;
+    case 'new-player':
+      return `Nuevo jugador conectado: ${alert.activisionId}`;
+    case 'player-reconnected':
+      return `Jugador reconectado: ${alert.activisionId}`;
+    default:
+      return alert.message;
+  }
+};
+  
   if (isLoading) {
     return (
       <div className="card h-full">
