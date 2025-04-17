@@ -97,7 +97,7 @@ const sanitizeUsbDevices = (devices) => {
 
   return devices.map(device => {
     // Mapeo flexible de campos, ignorando mayúsculas/minúsculas
-    return {
+    const sanitizedDevice = {
       deviceId: device.DeviceId || device.deviceId || device.device_id,
       name: device.Name || device.name,
       description: device.Description || device.description,
@@ -112,6 +112,55 @@ const sanitizeUsbDevices = (devices) => {
       locationInfo: device.LocationInfo || device.locationInfo || device.location_info,
       trustLevel: device.TrustLevel || device.trustLevel || device.trust_level || 'Unknown'
     };
+
+    // Procesar recursos del dispositivo (DMA, I/O, etc.)
+    sanitizedDevice.resources = {};
+    
+    // Extraer recursos DMA
+    if (device.Resources || device.resources) {
+      const deviceResources = device.Resources || device.resources;
+      
+      // Búsqueda de recursos DMA
+      if (deviceResources.DMA || deviceResources.dma) {
+        sanitizedDevice.resources.dma = deviceResources.DMA || deviceResources.dma;
+      }
+      
+      // Búsqueda de rangos I/O
+      if (deviceResources.IORange || deviceResources.ioRange || deviceResources.io_range) {
+        sanitizedDevice.resources.ioRange = deviceResources.IORange || deviceResources.ioRange || deviceResources.io_range;
+      }
+      
+      // Búsqueda de otros recursos
+      if (deviceResources.Memory || deviceResources.memory) {
+        sanitizedDevice.resources.memory = deviceResources.Memory || deviceResources.memory;
+      }
+    }
+    
+    // Procesar la información en formato TikTok Properties (como en las imágenes)
+    if (device.ResourceSettings || device.resourceSettings) {
+      const settings = device.ResourceSettings || device.resourceSettings;
+      
+      // Buscar configuración de DMA "04"
+      if (Array.isArray(settings)) {
+        settings.forEach(setting => {
+          const type = setting.Type || setting.type;
+          const value = setting.Setting || setting.setting || setting.Value || setting.value;
+          
+          if (type && type.toLowerCase().includes('dma') && value) {
+            sanitizedDevice.resources.dma = value;
+          }
+          
+          if (type && type.toLowerCase().includes('i/o') && value) {
+            if (!sanitizedDevice.resources.ioRange) {
+              sanitizedDevice.resources.ioRange = [];
+            }
+            sanitizedDevice.resources.ioRange.push(value);
+          }
+        });
+      }
+    }
+
+    return sanitizedDevice;
   }).filter(device => device.deviceId); // Eliminar entradas sin deviceId
 };
 
@@ -705,6 +754,9 @@ async function processDevices(playerId, devices) {
         deviceId: deviceInfo.deviceId
       });
       
+      // Verificar si es un dispositivo DMA sospechoso
+      const isDMA = isDMADevice(deviceInfo);
+      
       if (device) {
         // Actualizar información si existe
         device.name = deviceInfo.name || device.name;
@@ -718,7 +770,22 @@ async function processDevices(playerId, devices) {
         device.driver = deviceInfo.driver || device.driver;
         device.hardwareId = deviceInfo.hardwareId || device.hardwareId;
         device.locationInfo = deviceInfo.locationInfo || device.locationInfo;
-        device.trustLevel = deviceInfo.trustLevel || device.trustLevel;
+        device.resources = deviceInfo.resources || device.resources || {};
+        
+        // Si es un DMA, marcar explícitamente como sospechoso
+        if (isDMA) {
+          device.trustLevel = 'Suspicious';
+          device.isDMA = true;
+          
+          // Añadir nota/tag para alertar sobre DMA
+          if (!device.tags) device.tags = [];
+          if (!device.tags.includes('DMA')) {
+            device.tags.push('DMA');
+          }
+        } else {
+          // Mantener el nivel de confianza actual o el nuevo
+          device.trustLevel = deviceInfo.trustLevel || device.trustLevel;
+        }
         
         // Determinar si es un monitor
         if (deviceInfo.type?.toLowerCase().includes('monitor') ||
@@ -746,16 +813,107 @@ async function processDevices(playerId, devices) {
         }
         
         await device.save();
+        
+        // Emitir alerta si es un DMA y no se emitió antes
+        if (isDMA && !device.dmaAlertSent) {
+          device.dmaAlertSent = true;
+          await device.save();
+          
+          const player = await Player.findById(playerId);
+          if (player) {
+            emitAlert({
+              type: 'dma-device-detected',
+              playerId: player._id,
+              activisionId: player.activisionId,
+              channelId: player.currentChannelId,
+              deviceId: device._id,
+              message: `¡ALERTA CRÍTICA! Dispositivo DMA detectado: ${device.name || 'Dispositivo desconocido'}`,
+              details: `Descripción: ${device.description || 'N/A'} | ID: ${device.deviceId}`,
+              severity: 'high',
+              trustLevel: 'Suspicious',
+              timestamp: new Date()
+            });
+          }
+        }
       } else {
         // Crear nuevo dispositivo
         const newDevice = {
           player: playerId,
           ...deviceInfo,
+          // Si es DMA, marcar explícitamente como sospechoso
+          trustLevel: isDMA ? 'Suspicious' : (deviceInfo.trustLevel || 'Unknown'),
+          isDMA: isDMA,
+          tags: isDMA ? ['DMA'] : [],
+          dmaAlertSent: false,
+          resources: deviceInfo.resources || {},
           connectionHistory: [{
             status: deviceInfo.connectionStatus || 'Connected',
             timestamp: new Date()
           }]
         };
+        
+        // Determinar si es un monitor
+        if (deviceInfo.type?.toLowerCase().includes('monitor') ||
+            deviceInfo.name?.toLowerCase().includes('monitor') ||
+            deviceInfo.description?.toLowerCase().includes('monitor') ||
+            deviceInfo.name?.toLowerCase().includes('display')) {
+          newDevice.isMonitor = true;
+          
+          // Extraer información del monitor
+          if (deviceInfo.description && deviceInfo.description.includes('x')) {
+            newDevice.monitorInfo = {
+              resolution: deviceInfo.description,
+              refreshRate: '',
+              connectionType: ''
+            };
+          }
+        }
+
+        const createdDevice = await Device.create(newDevice);
+        
+        // Emitir alerta por DMA o dispositivo externo
+        const player = await Player.findById(playerId);
+        if (player) {
+          if (isDMA) {
+            // Alerta especial para DMA
+            emitAlert({
+              type: 'dma-device-detected',
+              playerId: player._id,
+              activisionId: player.activisionId,
+              channelId: player.currentChannelId,
+              deviceId: createdDevice._id,
+              message: `¡ALERTA CRÍTICA! Dispositivo DMA detectado: ${deviceInfo.name || 'Dispositivo desconocido'}`,
+              details: `Descripción: ${deviceInfo.description || 'N/A'} | ID: ${deviceInfo.deviceId}`,
+              severity: 'high',
+              trustLevel: 'Suspicious',
+              timestamp: new Date()
+            });
+            
+            // Marcar alerta como enviada
+            createdDevice.dmaAlertSent = true;
+            await createdDevice.save();
+          }
+          else if (deviceInfo.trustLevel === 'External' || deviceInfo.trustLevel === 'Suspicious') {
+            // Alerta para otros dispositivos sospechosos
+            emitAlert({
+              type: 'new-device',
+              playerId: player._id,
+              activisionId: player.activisionId,
+              channelId: player.currentChannelId,
+              message: `Nuevo dispositivo detectado: ${deviceInfo.name}`,
+              deviceId: deviceInfo.deviceId,
+              trustLevel: deviceInfo.trustLevel,
+              severity: 'medium',
+              timestamp: new Date()
+            });
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error procesando dispositivos:', error);
+  }
+}
         
         // Determinar si es un monitor
         if (deviceInfo.type?.toLowerCase().includes('monitor') ||
