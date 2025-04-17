@@ -4,7 +4,23 @@ const mongoose = require('mongoose');
 const alertSchema = mongoose.Schema({
   type: {
     type: String,
-    required: true
+    required: true,
+    // Añadir el nuevo tipo de alerta DMA
+    enum: [
+      'new-player', 
+      'player-reconnected', 
+      'player-disconnected',
+      'player-suspicious',
+      'screenshot-taken',
+      'screenshot-request',
+      'new-device',
+      'device-suspicious',
+      'dma-device-detected',  // Nuevo tipo para alertas DMA
+      'hwid-duplicate',
+      'client-error',
+      'game-started',
+      'game-stopped'
+    ]
   },
   playerId: {
     type: mongoose.Schema.Types.ObjectId,
