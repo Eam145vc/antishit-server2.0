@@ -51,9 +51,20 @@ const Alerts = () => {
     setFilteredAlerts(filtered);
   }, [alerts, searchTerm, filterSeverity]);
   
-  // Obtener ícono según severidad
-  const getAlertIcon = (severity) => {
-    switch (severity) {
+  // Obtener ícono según tipo de alerta
+  const getAlertIcon = (alert) => {
+    // Alerta especial para DMA
+    if (alert.type === 'dma-device-detected') {
+      return (
+        <ExclamationTriangleIcon
+          className="h-5 w-5 text-danger-500 animate-pulse"
+          aria-hidden="true"
+        />
+      );
+    }
+    
+    // Alertas normales por severidad
+    switch (alert.severity) {
       case 'high':
         return (
           <ExclamationTriangleIcon
@@ -159,10 +170,10 @@ const Alerts = () => {
           {filteredAlerts.map((alert) => (
             <div 
               key={alert._id} 
-              className="card flex items-start p-4 space-x-4"
+              className={`card flex items-start p-4 space-x-4 ${alert.type === 'dma-device-detected' ? 'border-danger-500 bg-danger-50' : ''}`}
             >
               <div className="flex-shrink-0 pt-0.5">
-                {getAlertIcon(alert.severity)}
+                {getAlertIcon(alert)}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
