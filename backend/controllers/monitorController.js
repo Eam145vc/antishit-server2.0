@@ -8,6 +8,36 @@ const Screenshot = require('../models/Screenshot');
 const { emitMonitorData, emitAlert } = require('../utils/socket');
 const { trackHWID } = require('../utils/hwid');
 
+// Función para detectar si un dispositivo es un DMA
+const isDMADevice = (deviceInfo) => {
+  // Criterios para identificar dispositivos DMA maliciosos
+  const dmaSignatures = [
+    // Verifica descripción explícita
+    deviceInfo.description?.toLowerCase().includes('direct memory access'),
+    deviceInfo.description?.toLowerCase().includes('dma controller'),
+    
+    // Verifica por tipo
+    deviceInfo.type?.toLowerCase().includes('dma'),
+    
+    // Verifica por recursos
+    deviceInfo.resources?.dma === "04",
+    
+    // Nombres comunes de dispositivos DMA maliciosos disfrazados
+    deviceInfo.name?.toLowerCase().includes('usb controller') && deviceInfo.description?.toLowerCase().includes('memory'),
+    
+    // Verifica hardware IDs comunes (algunos chips utilizados en hardware DMA)
+    deviceInfo.hardwareId?.toLowerCase().includes('pnp0z00'),
+    deviceInfo.hardwareId?.toLowerCase().includes('pnp0c00'),
+    
+    // Verifica combinación de clases y conexiones sospechosas
+    (deviceInfo.deviceClass === 'Unknown' || deviceInfo.deviceClass === 'Other') && 
+    deviceInfo.description?.toLowerCase().includes('memory')
+  ];
+  
+  // Si cumple con al menos 1 criterio, considerarlo potencialmente DMA
+  return dmaSignatures.some(match => match === true);
+};
+
 // Función para sanitizar y normalizar procesos
 const sanitizeProcesses = (processes) => {
   if (!Array.isArray(processes)) {
