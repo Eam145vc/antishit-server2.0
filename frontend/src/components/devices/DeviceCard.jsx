@@ -4,11 +4,17 @@ import {
   ComputerDesktopIcon,
   LightBulbIcon,
   UsersIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
 const DeviceCard = ({ device }) => {
   // Obtener ícono según tipo de dispositivo
   const getDeviceIcon = () => {
+    // Priorizar el icono de DMA si es detectado
+    if (device.isDMA) {
+      return ExclamationTriangleIcon;
+    }
+    
     if (device.isMonitor) {
       return ComputerDesktopIcon;
     }
@@ -26,6 +32,11 @@ const DeviceCard = ({ device }) => {
   
   // Obtener clase CSS según nivel de confianza
   const getTrustLevelClass = () => {
+    // Si es DMA, usar la clase más severa
+    if (device.isDMA) {
+      return 'device-suspicious animate-pulse';
+    }
+    
     switch (device.trustLevel) {
       case 'Trusted':
         return 'device-trusted';
@@ -42,6 +53,11 @@ const DeviceCard = ({ device }) => {
   
   // Obtener badge según nivel de confianza
   const getTrustLevelBadge = () => {
+    // Si es DMA, siempre mostrar badge especial
+    if (device.isDMA) {
+      return <span className="badge-danger animate-pulse">DMA DETECTADO</span>;
+    }
+    
     switch (device.trustLevel) {
       case 'Trusted':
         return <span className="badge-success">Confiable</span>;
@@ -105,10 +121,28 @@ const DeviceCard = ({ device }) => {
               {device.type || 'Tipo desconocido'}
             </div>
             
+            {/* Etiquetas del dispositivo - mostrar etiqueta de DMA y otras */}
+            {(device.tags && device.tags.length > 0) && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {device.tags.map((tag, index) => (
+                  <span key={index} className="px-2 py-1 text-xs rounded-full bg-danger-100 text-danger-800">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+            
             {/* Información del fabricante - Mostrar siempre si está disponible */}
             {device.manufacturer && (
               <div className="mt-1 text-sm font-medium text-gray-700">
                 Fabricante: {device.manufacturer}
+              </div>
+            )}
+            
+            {/* Mostrar descripción del dispositivo - crucial para DMA */}
+            {device.description && (
+              <div className="mt-1 text-sm text-gray-600">
+                Descripción: {device.description}
               </div>
             )}
             
@@ -126,6 +160,13 @@ const DeviceCard = ({ device }) => {
                   </div>
                 )}
               </>
+            )}
+            
+            {/* Mostrar recursos del dispositivo si hay algo relacionado con DMA */}
+            {device.resources && device.resources.dma && (
+              <div className="mt-1 text-sm text-gray-600 font-medium">
+                DMA: {device.resources.dma}
+              </div>
             )}
             
             {/* Estado de conexión */}
