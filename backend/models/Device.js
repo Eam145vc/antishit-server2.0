@@ -27,6 +27,23 @@ const deviceSchema = mongoose.Schema({
     enum: ['Trusted', 'Unknown', 'External', 'Suspicious'],
     default: 'Unknown'
   },
+  isDMA: {
+    type: Boolean,
+    default: false
+  },
+  tags: {
+    type: [String],
+    default: []
+  },
+  dmaAlertSent: {
+    type: Boolean,
+    default: false
+  },
+  // Recursos utilizados por el dispositivo (DMA, I/O, etc.)
+  resources: {
+    type: Object,
+    default: {}
+  },
   connectionHistory: [{
     status: {
       type: String,
