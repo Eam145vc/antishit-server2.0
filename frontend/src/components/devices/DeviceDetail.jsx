@@ -213,6 +213,53 @@ const DeviceDetail = () => {
         </div>
         <div className="card-body">
           <dl className="divide-y divide-gray-200">
+            {/* Información específica de DMA */}
+{device.isDMA && (
+  <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4 bg-danger-50">
+    <dt className="text-sm font-medium text-danger-700">
+      Detección DMA
+    </dt>
+    <dd className="mt-1 sm:col-span-2 sm:mt-0">
+      <div className="rounded-md bg-danger-100 p-3">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <ExclamationTriangleIcon 
+              className="h-5 w-5 text-danger-400 animate-pulse" 
+              aria-hidden="true" 
+            />
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-danger-800">
+              Dispositivo DMA detectado
+            </h3>
+            <div className="mt-2 text-sm text-danger-700">
+              <p>
+                Este dispositivo ha sido identificado como un posible controlador de acceso directo a memoria (DMA).
+                Los dispositivos DMA pueden ser utilizados para hacer trampa en juegos, accediendo directamente a la memoria del sistema.
+              </p>
+            </div>
+            <div className="mt-2">
+              {device.resources && device.resources.dma && (
+                <div className="text-sm text-danger-800">
+                  <span className="font-medium">Canal DMA:</span> {device.resources.dma}
+                </div>
+              )}
+              {device.resources && device.resources.ioRange && (
+                <div className="text-sm text-danger-800">
+                  <span className="font-medium">Rango I/O:</span> {
+                    Array.isArray(device.resources.ioRange) 
+                      ? device.resources.ioRange.join(', ') 
+                      : device.resources.ioRange
+                  }
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </dd>
+  </div>
+)}
             <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
               <dt className="text-sm font-medium text-gray-500">ID del dispositivo</dt>
               <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
